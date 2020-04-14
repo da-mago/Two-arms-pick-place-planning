@@ -90,7 +90,7 @@ class EnvYuMi:
         self.robot = YuMi()
 
         if pieces_cfg == None:
-            self.piecesCfg = [{'start' : [-0.3, -0.5, 0],  # Piece 1
+            self.piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
                                'end'   : [ 0.5, -1.5, 0],
                                'nArms' : 1
                               },
@@ -253,13 +253,10 @@ class EnvYuMi:
     def _buildMDP(self):
 
         print("Filtering valid states ...")
-        #valid_states = []
-        #for s in range(self.nS):
-        #    if self._isStateValid(s):
-        #        valid_states.append(s)
 
         valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
         valid_nS = len(valid_states)
+        print(valid_nS)
 
         print("Computing MDP ...")
         # Note: MDP is very large. Use numpy
@@ -455,31 +452,12 @@ class EnvYuMi:
                     res = False
                     break
 
-        # - When an arm is done, it stays still
+        # - When the job is done, at least one arm should be at a target piece position
         if res == True:
-            # number of pieces not picked up yet
-            nFreePieces = 0
-            pieces = piecesMap
-            while pieces > 0:
-                if pieces & 1:
-                    nFreePieces += 1
-                pieces >>= 1
+            if (piecesMap == 0) and np.sum(armsStatus) == 0:
+                tmp = [ p1==p2['end'] for p1 in armsGridPos for p2 in self.piecesGridCfg ]
+                res = True in tmp
 
-            # number of free arms (not carrying any pieces) not staying at target position (any pieces end-position)
-            nFreeArms = 0
-            for status, pos in zip(armsStatus, armsGridPos):
-                if status == 0:
-                    arm_done = False
-                    for cfg in self.piecesGridCfg:
-                        if pos == cfg['end']:
-                            arm_done = True
-                            break
-
-                    if arm_done == False:
-                        nFreeArms += 1
-
-            if nFreeArms > nFreePieces: # More idle arms than pieces waiting for being picked up
-                res = False
 
         # and store it
         #self.piecesStatusValid[idx] = res
@@ -535,14 +513,15 @@ class EnvYuMi:
 
     def _isGoalMet(self):
         ''' Is MDP solved? '''
-        if self.piecesMap != 0:
-            return False
-        for status in self.armsStatus:
-            if status > 0:
-                return False
-        
-        # All pieces picked up and dropped off
-        return True
+        return ((self.piecesMap == 0) and (np.sum(self.armsStatus) == 0))
+        #if self.piecesMap != 0:
+        #    return False
+        #for status in self.armsStatus:
+        #    if status > 0:
+        #        return False
+        #
+        ## All pieces picked up and dropped off
+        #return True
 
     def _getDefaultResetState(self):
         armsGridPos = [[0,0], [6,4]]  # init 2D grid pos

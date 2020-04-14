@@ -5,7 +5,45 @@ import envYumi
 import time    # sleep
 import imageio # mimsave
 
-def value_iteration(env, V, theta=0.0001, discount_factor=1.0):
+def FasterValueIteration(env, V, states7, theta=0.0001, discount_factor=1.0):
+    ''' Avoid python code :). Let's numpy do the magic.
+        Do not iterate for each state, make all states computations at once
+        at python level
+    '''
+
+    while True:
+        V_cp = np.copy(V)
+        V = np.max( env.MDP[1] + discount_factor*V_cp[env.MDP[0]], axis=1 )
+        delta = np.max(np.abs(V-V_cp))
+        if delta < theta:
+            break
+
+    ## Extra performance: compute Value F on smaller blocks
+    ## TODO: not really optimal (solution with more steps). Need to be review the blocks created
+    #for states in p_states_val:
+    #    if len(states) == 0:
+    #        continue
+    #    while True:
+    #        V_cp = np.copy(V)
+    #        V[states] = np.max( env.MDP[1][states] + discount_factor*V_cp[env.MDP[0][states]], axis=1 )
+    #        delta = np.max(np.abs(V[states]-V_cp[states]))
+    #        if delta < theta:
+    #            break
+
+    policy = ComputeOptimalPolicies(V)
+
+    return V, policy
+
+def ValueIteration(env, V, states, theta=0.0001, discount_factor=1.0):
+
+    for states in p_states_val:
+        ComputeOptimalValueF(env, V, states, theta=0.0001, discount_factor=1.0)
+    policy = ComputeOptimalPolicies(V)
+
+    return V, policy
+
+
+def ComputeOptimalValueF(env, V, states, theta=0.0001, discount_factor=1.0):
     """
     Value Iteration Algorithm.
     
@@ -21,78 +59,33 @@ def value_iteration(env, V, theta=0.0001, discount_factor=1.0):
     Returns:
         A tuple (policy, V) of the optimal policy and the optimal value function.
     """
-    
 
-    state_idx = {}
-    for i, item in enumerate(env.MDP[2]):
-        state_idx[item] = i
-
-    ## Get MDP (or compute MDP the first time)
-    #import gc
-    #import cPickle
-    #gc.disable()
-    #try:
-    #    mdp = cPickle.load( open( "mdp.bin", "rb" ))
-    #except:
-    #    mdp = env.get_MDP()
-    #    cPickle.dump(mdp, open( "mdp.bin", "wb" ), protocol=-1  )
-    #gc.enable()
-    #print('MDP')
-
-    #cnt = 0
-    #states_per_level = env.get_states_per_level()
-    #print(states_per_level)
-    #for level in states_per_level:
-    #    #break
-    #    for state_base in level:
-
-    #        while True:
-    #            # Stopping condition
-    #            delta = 0
-    #            V_cp = np.copy(V)
-
-    #            # Update each state...
-    #            for s in range(state_base, state_base+625):
-    #                if env.is_state_invalid(s):
-    #                    continue
-
-    #                #print(env._state_decode(state_base))
-    #                # Do a one-step lookahead to find the best action
-    #                VA = one_step_lookahead(s, V_cp)
-    #                best_action_value = np.max(VA)
-    #                # Calculate delta across all states seen so far
-    #                delta = max(delta, np.abs(best_action_value - V_cp[s]))
-    #                # Update the value function. Ref: Sutton book eq. 4.10. 
-    #                V[s] = best_action_value        
-    #                #if V[s] != V_cp[s] and s == 774:
-    #                #    print(s, V_cp[s], V[s])
-    #            # Check if we can stop 
-    #            if delta < theta:
-    #                #ppython fastrint(cnt)
-    #                break
-    #            else:
-    #                #print(cnt, delta)
-    #                cnt += 1
-    #    #break
+    if len(states) == 0:
+        return V
 
     done = False
     cnt = 0
     while not done:
         # Stopping condition
-        updated = 0
+        updated = 0 
         delta = 0
         done = True
         V_cp = np.copy(V)
+        Vt = []
 
         # For every valid state
-        for i in range(states_len):
+        for state in states:
+
             # Update the value function
-            #              reward                            next_state
-            next_states_idx = np.array([state_idx[next_state] for next_state in env.MDP[0][i]], dtype=np.int32)
-            V[i] = np.max( env.MDP[1][i] + discount_factor*V[next_states_idx] ) # one-step lookahead
+            idx = states_idx[state]
+            #next_states_idx = np.array( [states_idx[next_state] for next_state in env.MDP[0][idx]], dtype=np.int32 )
+            next_states_idx = env.MDP[0][idx]
+            # V[s] =       reward        +         gamma    V[s']
+            V[idx] = np.max( env.MDP[1][idx] + discount_factor*V_cp[next_states_idx] )
+            Vt.append(V[idx])
 
             # Calculate delta across all states seen so far
-            curr_delta = np.abs(V[i] - V_cp[i])
+            curr_delta = np.abs(V[idx] - V_cp[idx])
             if curr_delta > theta:
                 done = False
                 updated += 1 # debug counter (states changing more than theta)
@@ -105,70 +98,95 @@ def value_iteration(env, V, theta=0.0001, discount_factor=1.0):
         if cnt>33:
             break
         #print(cnt, updated)
-        print(cnt, updated, delta)
+        #print(cnt, updated, delta)
         
-    print('Done')
+    #print('Done')
+
+    return V
     
-    # Compute optimal policy (based on optimal value function)
-    #                    <---------------  one-step lookahed ---------------------->
-    #policy = np.array( [ np.argmax(env.MDP[1][s] + discount_factor*V[env.MDP[0][s]]) for s in range(env.nS) ], dtype=np.int8)
+
+def ComputeOptimalPolicies(V, discount_factor = 1.0):
+    ''' Compute optimal policies from Optimal Value Function '''
+
     policy = np.zeros(states_len, dtype=np.int8)
     for i in range(states_len):
-        next_states_idx = np.array([state_idx[next_state] for next_state in env.MDP[0][i]], dtype=np.int32)
+        #next_states_idx = np.array([states_idx[next_state] for next_state in env.MDP[0][i]], dtype=np.int32)
+        next_states_idx = env.MDP[0][i]
+        #print(next_states_idx)
         policy[i] = np.argmax(env.MDP[1][i] + discount_factor*V[next_states_idx])
     
-    return policy, V, list(env.MDP[2])
+    return policy
+
 
 if __name__ == "__main__":
 
-    #pieces_cfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-    #               'end'   : [ 0.5, -1.5, 0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.3, -0.8, 0],  # Piece 2
-    #               'end'   : [ 1,   -1,   0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.3, -1,   0],  # Piece 3
-    #               'end'   : [ 0.3, -1,   0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.6, -1.3, 0],  # Piece 4
-    #               'end'   : [ 0.6, -0.8, 0],
-    #               'nArms' : 1
-    #              }]
-    #              #},
-    #              #{'start' : [-0.7, -0.7, 0],  # Piece 5
-    #              # 'end'   : [ 1.2, -0.4, 0],
-    #              # 'nArms' : 1
-    #              #},
-    #              #{'start' : [-0.8, -1,   0],  # Piece 6
-    #              # 'end'   : [ 0.5, -1.2,   0],
-    #              # 'nArms' : 1
-    #              #},
-    #              #{'start' : [-0.9, -0.5, 0],  # Piece 7
-    #              # 'end'   : [ 1.2, -0.8, 0],
-    #              # 'nArms' : 1
-    #              #}]
-    #env = envYumi.EnvYuMi(pieces_cfg)
     env = envYumi.EnvYuMi()
     env.reset()
 
-    states_len = len(env.MDP[2])
+    states_val = env.MDP[2]
+    states_len = len(states_val)
+    states_idx = {}
+    for i, item in enumerate(states_val):
+        states_idx[item] = i
+
+    #for i in range(states_len):
+    #    for j in range(len(env.MDP[0][0])):
+    #        env.MDP[0][i][j] = states_idx[env.MDP[0][i][j]]
+    env.MDP[0] = np.array([[states_idx[env.MDP[0][i][j]] for j in range(len(env.MDP[0][0]))] for i in range(states_len)])
+
+    p_states_val = [[] for _ in range(16*24)]
+    levels = [0x0, 0x1, 0x2, 0x4, 0x8, 0x3, 0x5, 0x9, 0x6, 0xa, 0xc, 0x7, 0xb, 0xd, 0xe, 0xf]
+    for i, state in enumerate(states_val):
+        armsGridPos, armsStatus, piecesMap = env._ext2intState(state)
+        idx = levels[piecesMap]
+        idx *= 24
+        if sum(armsStatus) == 0:
+            pass
+        elif armsStatus[0] == 0:
+            idx += armsStatus[1]
+        elif armsStatus[1] == 0:
+            idx += 4+armsStatus[0]
+        else:
+            idx += 8+1+(armsStatus[0]-1)*4+(armsStatus[1]-1)
+
+        #p_states_val[idx].append(state)
+        p_states_val[idx].append(i)
+
+    #for i,item in enumerate(p_states_val):
+    #    print(i, len(item))
+
+    #p_states_val = [states_val[i*states_len//4:(i+1)*states_len//4] for i in range(4)]
+    #p_states_val = [states_val] # Prioritized states blocks
+
     V = np.zeros(states_len, dtype=np.float)
+    #sys.exit()
     print(states_len)
 
     # Train
     if True:
-        V = pickle.load( open( "value.bin", "rb" ) )
+        #V = pickle.load( open( "value.bin", "rb" ) )
 
-        policy, v, valid_states = value_iteration(env, V, discount_factor=0.95)
+        # Compute Value Function in separated and smaller blocks instead of all at once
+        #
+        # Reason: goal reward is propagated from the last state to all the rest. When 
+        #         computing it at once, some states will converge before others, some 
+        #         states will be updated with meaningful info until several iterations, ...
+        #         If we are smart, we can take advantadge of this knowledge (do not train
+        #         Value Funtion in states representing all pieces are not picked up yet,
+        #         if the others states representing more avanced positions in the game have
+        #         not converge yet)
+        #
+        #V, policy = ValueIteration(env, V, p_states_val, discount_factor=0.95)
+        V, policy = FasterValueIteration(env, V, p_states_val, discount_factor=0.95)
 
         #pickle.dump( v,      open( "value.bin", "wb" ) )
         #pickle.dump( policy, open( "policy.bin", "wb" ) )
     else:
         policy = pickle.load( open( "policy.bin", "rb" ) )
 
+
+    #sys.exit()
+    # Show solution
     valid_states = list(env.MDP[2])
 
     next_state = env._int2extState([[0,4],[8,4]],[0,0],15)
@@ -177,10 +195,12 @@ if __name__ == "__main__":
     env.render()
     done = False
     images = []
+    i=0
     while done == False:
         action = policy[ valid_states.index(next_state) ]
         #action = policy[next_state]
-        print(env._ext2intAction(action))
+        print(i, env._ext2intAction(action))
+        i+=1
         next_state, reward, done, info = env.step(action)
         env.render()
         time.sleep(0.2)
