@@ -106,6 +106,22 @@ class EnvYuMi:
                                'end'   : [ 0.6, -0.8, 0],
                                'nArms' : 1
                               }]
+            #self.piecesCfg = [{'start' : [-1.1, -0.8, 0],  # Piece 1
+            #                   'end'   : [ 0.5, -1.5, 0],
+            #                   'nArms' : 1
+            #                  },
+            #                  {'start' : [-0.5, -0.2, 0],  # Piece 2
+            #                   'end'   : [ 1,   -1,   0],
+            #                   'nArms' : 1
+            #                  },
+            #                  {'start' : [-0.6, -0.8,   0],  # Piece 3
+            #                   'end'   : [ 0.3, -1,   0],
+            #                   'nArms' : 1
+            #                  },
+            #                  {'start' : [-0.3, -1, 0],  # Piece 4
+            #                   'end'   : [ 0.6, -0.8, 0],
+            #                   'nArms' : 1
+            #                  }]
                               #},
                               #{'start' : [-0.7, -0.7, 0],  # Piece 5
                               # 'end'   : [ 1.2, -0.4, 0],
@@ -171,6 +187,7 @@ class EnvYuMi:
         # Note: part of the code is specific for two-arm robots (TODO: refactor)
         #
         N,M = 10,5 # (cols, rows)
+        #N,M = 21,10 # (cols, rows)
         K = len(self.piecesCfg)
         self.N, self.M, self.K = N,M,K
  
@@ -189,6 +206,8 @@ class EnvYuMi:
         #    - data manually selected from YuMi robot data
         grid_x, grid_y =  -1.35, -0.2  # top-left 2D grid corner
         step_x, step_y =   0.3,  -0.3  # distance between cells
+        #grid_x, grid_y =  -1.5,  -0.2   # top-left 2D grid corner
+        #step_x, step_y =   0.15, -0.15  # distance between cells
 
         self.grid = [ [grid_x + step_x*j, grid_y + step_y*k, 0] for j in range(N) for k in range(M)]
 
@@ -258,16 +277,20 @@ class EnvYuMi:
         valid_nS = len(valid_states)
         print(valid_nS)
 
+        states_idx = {}
+        for i, item in enumerate(valid_states):
+            states_idx[item] = i
+
         print("Computing MDP ...")
         # Note: MDP is very large. Use numpy
-        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32)
+        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
         mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int8)
         mdp_v = np.array(valid_states)
         for i,s in enumerate(valid_states):
             for a in range(self.nA):
                self.reset(s)
                next_state, reward, done, info = self._step(a)
-               mdp_s[i][a] = next_state
+               mdp_s[i][a] = states_idx[next_state]
                mdp_r[i][a] = reward
             if (i % (valid_nS//10)) == 0:
                 print(10*i//(valid_nS//10),'%')
@@ -632,10 +655,13 @@ class EnvYuMi:
         #    info   = 'invalid'
         #    return state, reward, done, info
 
-    def _step(self, action):
+    def _step(self, action, mode=0):
         ''' Take an action. Make the full processing
 
             action: scalar in the range [0, self.nA-1]
+            mode  : 0 (normal), 1 (pick&place always succeeds), 2 (pick and place always fails)
+
+            PickPlace trick must be done per piece
         '''
 
         # Current state is valid. Let's process the action!
@@ -667,6 +693,7 @@ class EnvYuMi:
         info        = ''
         done        = False
         valid_state = True
+        pick_place_mark = False
 
         offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
 
@@ -683,22 +710,44 @@ class EnvYuMi:
                 piece_idx = self.armsStatus[i]
                 if piece_idx > 0:
                     next_pieces_grid_pos[piece_idx-1] = pos
-            # pick up
-            elif a == 4:
-                valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
-                if valid_state:
-                    next_arms_status[i]  = piece_idx + 1
-                    next_pieces_map     &= ~(1<<piece_idx)
-                else:
-                    break # Nothing to pick up
-            # drop off
-            elif a == 5:
-                valid_state = self._isDropOffActionValid(pos, self.armsStatus[i])
-                if valid_state:
-                    next_arms_status[i]  = 0
-                else:
-                    break # Nothing to drop off
-            # stay
+
+            # Do NOT analyze pick and place actions (in any state). Consider them as invalid, 
+            # Specifically, if any check fails, do not make anything special (reward = -20),
+            # but if every check is passed, then return a reward=-30. This will help to 
+            # identify which state/pair actions can be corrected.
+            #
+            # The idea behind this is to precompute as much as possible the MDP table, 
+            # and then, when pieces configuration is known (real time), complete it
+            # (updating those 'marked' state/pair actions corresponding to the pieces
+            # locations).
+            # This trick will speed up the algorithm in real time (most of the MDP table
+            # will be precocomputed offline)
+            #
+            # pick or place
+            #
+            elif a == 4 or a == 5:
+                # mark it, but do not abort the remaining checks
+                pick_place_mark = True
+            
+            # As mentioned above, do not analyze these actions for a specific sceneario
+            # (pieces configuration)
+            #
+            ## pick up
+            #elif a == 4:
+            #    valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
+            #    if valid_state:
+            #        next_arms_status[i]  = piece_idx + 1
+            #        next_pieces_map     &= ~(1<<piece_idx)
+            #    else:
+            #        break # Nothing to pick up
+            ## drop off
+            #elif a == 5:
+            #    valid_state = self._isDropOffActionValid(pos, self.armsStatus[i])
+            #    if valid_state:
+            #        next_arms_status[i]  = 0
+            #    else:
+            #        break # Nothing to drop off
+            ## stay
             else:
                 move_both_arms  = False # One arm stays still
 
@@ -714,21 +763,25 @@ class EnvYuMi:
             valid_state = self._isPiecesStatusValid(next_pos, next_arms_status, next_pieces_map)
 
         if valid_state:
-            self.armsStatus    = next_arms_status
-            self.piecesMap     = next_pieces_map
-            self.armsGridPos   = next_pos
-            self.piecesGridPos = next_pieces_grid_pos
-
-            if self._isGoalMet():
-                reward = 100
-                done   = True
+            if pick_place_mark:
+                # special reward mark (state unchanged)
+                reward = -30
             else:
-                # Different reward when moving one or both arms helps to:
-                # - prefer moving both arms at once (-2) than separately (-3.8)
-                # - prefer moving only one arm when the other already got 
-                #   its goal (-1.9 better than -2)
-                if move_both_arms == True: reward = -3
-                else:                      reward = -2
+                self.armsStatus    = next_arms_status
+                self.piecesMap     = next_pieces_map
+                self.armsGridPos   = next_pos
+                self.piecesGridPos = next_pieces_grid_pos
+
+                if self._isGoalMet():
+                    reward = 100
+                    done   = True
+                else:
+                    # Different reward when moving one or both arms helps to:
+                    # - prefer moving both arms at once (-2) than separately (-3.8)
+                    # - prefer moving only one arm when the other already got 
+                    #   its goal (-1.9 better than -2)
+                    if move_both_arms == True: reward = -3
+                    else:                      reward = -2
         else:
             # The same reward (punishment) for any unwanted action
             reward = -20
