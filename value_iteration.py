@@ -12,52 +12,59 @@
 import numpy as np
 import sys
 import pickle
-import envYumi
+import env_pickplace
+import yumi
 import time    # sleep
 import imageio # mimsave
 
-def FasterValueIteration(env, V, states7, theta=0.0001, discount_factor=1.0):
+def FasterValueIteration(env, states7, V=None, theta=0.0001, discount_factor=1.0):
     ''' Avoid python code :). Let's numpy do the magic.
         Do not iterate for each state, make all states computations at once
         at python level
     '''
 
-    while True:
-        #V_cp = np.copy(V)
-        #V1 = np.max( env.MDP[1] + discount_factor*V_cp[env.MDP[0]], axis=1 )
-        #delta = np.max(np.abs(V-V_cp))
-        Vk = np.max( env.MDP[1] + discount_factor*V[env.MDP[0]], axis=1 )
-        delta = np.max(np.abs(Vk-V))
-        V = Vk
-        if delta < theta:
-            break
+    if V == None:
+        V = np.zeros(states_len, dtype=np.float)
 
-    ## Extra performance: compute Value F on smaller blocks
-    ## TODO: not really optimal (solution with more steps). Need to be review the blocks created
-    #for states in p_states_val:
-    #    if len(states) == 0:
-    #        continue
-    #    while True:
-    #        V_cp = np.copy(V)
-    #        V[states] = np.max( env.MDP[1][states] + discount_factor*V_cp[env.MDP[0][states]], axis=1 )
-    #        delta = np.max(np.abs(V[states]-V_cp[states]))
-    #        if delta < theta:
-    #            break
+    #while True:
+    #    #V_cp = np.copy(V)
+    #    #V1 = np.max( env.MDP[1] + discount_factor*V_cp[env.MDP[0]], axis=1 )
+    #    #delta = np.max(np.abs(V-V_cp))
+    #    Vk = np.max( env.MDP[1] + discount_factor*V[env.MDP[0]], axis=1 )
+    #    delta = np.max(np.abs(Vk-V))
+    #    V = Vk
+    #    if delta < theta:
+    #        break
+
+    # Extra performance: compute Value F on smaller blocks
+    # TODO: not really optimal (solution with more steps). Need to be review the blocks created
+    for states in p_states_val:
+        if len(states) == 0:
+            continue
+        while True:
+            V_cp = np.copy(V)
+            V[states] = np.max( env.MDP[1][states] + discount_factor*V_cp[env.MDP[0][states]], axis=1 )
+            delta = np.max(np.abs(V[states]-V_cp[states]))
+            if delta < theta:
+                break
 
     policy = ComputeOptimalPolicies(V)
 
-    return V, policy
+    return policy
 
-def ValueIteration(env, V, states, theta=0.0001, discount_factor=1.0):
+def ValueIteration(env, states, V=None, theta=0.0001, discount_factor=1.0):
+
+    if V == None:
+        V = np.zeros(states_len, dtype=np.float)
 
     for states in p_states_val:
-        ComputeOptimalValueF(env, V, states, theta=0.0001, discount_factor=1.0)
+        ComputeOptimalValueF(env, states, V, theta=0.0001, discount_factor=1.0)
     policy = ComputeOptimalPolicies(V)
 
-    return V, policy
+    return policy
 
 
-def ComputeOptimalValueF(env, V, states, theta=0.0001, discount_factor=1.0):
+def ComputeOptimalValueF(env, states, V, theta=0.0001, discount_factor=1.0):
     """
     Value Iteration Algorithm.
     
@@ -125,7 +132,7 @@ def ComputeOptimalPolicies(V, discount_factor = 1.0):
     #policy = np.zeros(states_len, dtype=np.int8)
     #for i in range(states_len):
     #    policy[i] = np.argmax(env.MDP[1][i] + discount_factor*V[env.MDP[0][i]])
-    policy = np.array([np.argmax(env.MDP[1][i] + discount_factor*V[env.MDP[0][i]]) for i in range(states_len)])
+    policy = np.array([np.argmax(env.MDP[1][i] + discount_factor*V[env.MDP[0][i]]) for i in range(len(env.MDP[0]))])
     
     return policy
 
@@ -220,24 +227,52 @@ def MDPCompletePickplace():
                                         env.MDP[1][idx][a1*7+a2] = reward
 
 
+def showSolution(policy, create_GIF=False):
+    ''' Show pick & place solution '''
+    next_state = env._int2extState([[0,4],[8,4]],[0,0],15)
+    env.reset(next_state)
+    images = []
+    i = 0
+    done = False
+    while done == False:
+        # Show pick&place solution
+        env.render()
+        time.sleep(0.1)
+        action = policy[ states_idx[next_state] ]
+        next_state, reward, done, info = env.step(action)
+
+        # Show plan actions
+        print(i, env._ext2intAction(action))
+        i += 1
+
+        # Create GIF
+        if create_GIF:
+            image = np.frombuffer(env.fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(env.fig.canvas.get_width_height()[::-1] + (3,)) # Example: (640,480,3)
+            images.append(image)
+            if done == True:
+                imageio.mimsave('YuMi.gif', images, duration=0.2)
+
+
 if __name__ == "__main__":
 
-    env = envYumi.EnvYuMi()
+    robot = yumi.YuMi()
+    env = env_pickplace.env_pickplace(robot)
     env.reset()
 
-    states_val = env.MDP[2]
+    states_val   = env.MDP[2]
+    states_idx   = env.MDP[3]
+    p_states_val = env.MDP[4]
+    #p_states_val = [states_val] # Prioritized states blocks
     states_len = len(states_val)
-    states_idx = {}
-    for i, item in enumerate(states_val):
-        states_idx[item] = i
-
-    #MDP2 = pickle.load( open( "MDP_complete.bin", "rb" ) )
 
     # Complete MDP (pick/place actions)
     MDPCompletePickplace()
 
     #sys.exit()
 
+    # Some checks - Remove it as soon as you are confident with your code
+    #MDP2 = pickle.load( open( "MDP_complete.bin", "rb" ) )
     #cnt=0
     #for i in range(len(MDP2[0])):
     #  for j in range(len(MDP2[0][0])):
@@ -250,38 +285,6 @@ if __name__ == "__main__":
 
     #sys.exit()
 
-    #env.MDP[0] = np.array([[states_idx[env.MDP[0][i][j]] for j in range(len(env.MDP[0][0]))] for i in range(states_len)])
-
-    #sys.exit()
-
-    ## This piece of code is only meaningful when computing Value F in small blocks
-    #p_states_val = [[] for _ in range(16*24)]
-    #levels = [0x0, 0x1, 0x2, 0x4, 0x8, 0x3, 0x5, 0x9, 0x6, 0xa, 0xc, 0x7, 0xb, 0xd, 0xe, 0xf]
-    #for i, state in enumerate(states_val):
-    #    armsGridPos, armsStatus, piecesMap = env._ext2intState(state)
-    #    idx = levels[piecesMap]
-    #    idx *= 24
-    #    if sum(armsStatus) == 0:
-    #        pass
-    #    elif armsStatus[0] == 0:
-    #        idx += armsStatus[1]
-    #    elif armsStatus[1] == 0:
-    #        idx += 4+armsStatus[0]
-    #    else:
-    #        idx += 8+1+(armsStatus[0]-1)*4+(armsStatus[1]-1)
-
-    #    #p_states_val[idx].append(state)
-    #    #p_states_val[idx].append(i)
-
-    #for i,item in enumerate(p_states_val):
-    #    print(i, len(item))
-
-    #p_states_val = [states_val[i*states_len//4:(i+1)*states_len//4] for i in range(4)]
-    p_states_val = [states_val] # Prioritized states blocks
-
-    V = np.zeros(states_len, dtype=np.float)
-    #V = np.zeros(states_len, dtype=np.int8)
-    #sys.exit()
     print(states_len)
 
     # Train
@@ -298,38 +301,16 @@ if __name__ == "__main__":
         #         if the others states representing more avanced positions in the game have
         #         not converge yet)
         #
-        #V, policy = ValueIteration(env, V, p_states_val, discount_factor=0.95)
-        V, policy = FasterValueIteration(env, V, p_states_val, discount_factor=0.95)
+        #V, policy = ValueIteration(env, p_states_val, discount_factor=0.95)
+        policy = FasterValueIteration(env, p_states_val, discount_factor=0.95)
 
         #pickle.dump( v,      open( "value.bin", "wb" ) )
         #pickle.dump( policy, open( "policy.bin", "wb" ) )
     else:
         policy = pickle.load( open( "policy.bin", "rb" ) )
 
-    #sys.exit()
-    # Show solution
-    #valid_states = list(env.MDP[2])
+    sys.exit()
 
-    next_state = env._int2extState([[0,4],[16,4]],[0,0],15)
-    env.piecesGridPos = [ cfg['start']  for cfg in env.piecesGridCfg ] # esto deberia estar en env.reset
-    env.reset(next_state)
-    env.render()
-    done = False
-    images = []
-    i=0
-    while done == False:
-        action = policy[ states_idx[next_state] ]
-        #action = policy[ valid_states.index(next_state) ]
-        #action = policy[next_state]
-        print(i, env._ext2intAction(action))
-        i+=1
-        next_state, reward, done, info = env.step(action)
-        env.render()
-        time.sleep(0.1)
-        #print(env.armsGridPos, env.armsStatus, env.piecesMap)
-        image = np.frombuffer(env.fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(env.fig.canvas.get_width_height()[::-1] + (3,)) # Example: (640,480,3)
-        images.append(image)
-    
-    imageio.mimsave('YuMi.gif', images, duration=0.2)
+    # Show solution
+    showSolution(policy)
 

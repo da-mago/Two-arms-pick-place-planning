@@ -67,8 +67,8 @@ import code
 #   final que es el que garantiza convergencia... (reward en el estado final es 0)). Esto 
 #   viene apoyado en el punto anterior.... un brazo se bloquea al dejar su ultima pieza
 
-class EnvYuMi:
-    ''' YuMi Pick&Place MDP environment
+class env_pickplace:
+    ''' Pick&Place environment
     
         The interface is similar to the openAI gym one, but less elaborate
         Bare minimum example:
@@ -82,65 +82,13 @@ class EnvYuMi:
                 env.step(env.action_space.sample()) # take a random action
             env.close()
     '''
-    def __init__(self, pieces_cfg=None):
+    def __init__(self, robot, pieces_cfg, work_area):
 
         #
         # Environment definition (YuMi + pieces)
         #
-        self.robot = YuMi()
-
-        if pieces_cfg == None:
-            self.piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-                               'end'   : [ 0.5, -1.5, 0],
-                               'nArms' : 1
-                              },
-                              {'start' : [-0.3, -0.8, 0],  # Piece 2
-                               'end'   : [ 1,   -1,   0],
-                               'nArms' : 1
-                              },
-                              {'start' : [-0.3, -1,   0],  # Piece 3
-                               'end'   : [ 0.3, -1,   0],
-                               'nArms' : 1
-                              },
-                              {'start' : [-0.6, -1.3, 0],  # Piece 4
-                               'end'   : [ 0.6, -0.8, 0],
-                               'nArms' : 1
-                              }]
-            #self.piecesCfg = [{'start' : [-1.1, -0.8, 0],  # Piece 1
-            #                   'end'   : [ 0.5, -1.5, 0],
-            #                   'nArms' : 1
-            #                  },
-            #                  {'start' : [-0.5, -0.2, 0],  # Piece 2
-            #                   'end'   : [ 1,   -1,   0],
-            #                   'nArms' : 1
-            #                  },
-            #                  {'start' : [-0.6, -0.8,   0],  # Piece 3
-            #                   'end'   : [ 0.3, -1,   0],
-            #                   'nArms' : 1
-            #                  },
-            #                  {'start' : [-0.3, -1, 0],  # Piece 4
-            #                   'end'   : [ 0.6, -0.8, 0],
-            #                   'nArms' : 1
-            #                  }]
-                              #},
-                              #{'start' : [-0.7, -0.7, 0],  # Piece 5
-                              # 'end'   : [ 1.2, -0.4, 0],
-                              # 'nArms' : 1
-                              #},
-                              #{'start' : [-0.8, -1,   0],  # Piece 6
-                              # 'end'   : [ 0.5, -1.2,   0],
-                              # 'nArms' : 1
-                              #},
-                              #{'start' : [-0.9, -0.5, 0],  # Piece 7
-                              # 'end'   : [ 1.2, -0.8, 0],
-                              # 'nArms' : 1
-                              #}]
-        else:
-            self.piecesCfg = pieces_cfg
-
-
-        # Robot for testing moves without affecting environment robot
-        self.test_robot = YuMi()
+        self.robot     = robot
+        self.piecesCfg = pieces_cfg
 
         # MDP
         #
@@ -186,8 +134,7 @@ class EnvYuMi:
         #
         # Note: part of the code is specific for two-arm robots (TODO: refactor)
         #
-        N,M = 10,5 # (cols, rows)
-        #N,M = 21,10 # (cols, rows)
+        N,M = work_area['size']
         K = len(self.piecesCfg)
         self.N, self.M, self.K = N,M,K
  
@@ -203,13 +150,12 @@ class EnvYuMi:
         # Precompute robot (angles) configuration for all arms positions
         #
         # 1. Define 2D grid of EE positions
-        #    - data manually selected from YuMi robot data
-        grid_x, grid_y =  -1.35, -0.2  # top-left 2D grid corner
-        step_x, step_y =   0.3,  -0.3  # distance between cells
-        #grid_x, grid_y =  -1.5,  -0.2   # top-left 2D grid corner
-        #step_x, step_y =   0.15, -0.15  # distance between cells
+        x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
+        x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
+        y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
+        print(x, y,x_delta, y_delta)
 
-        self.grid = [ [grid_x + step_x*j, grid_y + step_y*k, 0] for j in range(N) for k in range(M)]
+        self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
 
         # 2. The pieces will be part of the grid, keeping the N*M logical grid structure.
         #    However, physically, grid cells will not be equidistant anymore.
@@ -238,6 +184,8 @@ class EnvYuMi:
             self.piecesGridCfg.append(pgCfg)
 
         # 3. Compute corresponding robot (angles) configurations
+        # TODO: gridAng = self.robot.getGridAnd()
+        # TODO: esto deberia gestionarlo la clase Robot()
         self.robot.setAngles([[np.pi, 0.3], [0, -1]]) # Initial position (very near to first position)
         
         nArms = self.robot.getNumArms()
@@ -248,94 +196,25 @@ class EnvYuMi:
             for i,ang in enumerate(angles):
                 self.gridAng[i].append(ang)
 
-        # Pieces initial pos
+        # Pieces current pos
         self.piecesGridPos = [ cfg['start']  for cfg in self.piecesGridCfg ]
-
-        # Interactive mode
-        self.selectedArm = 0
 
         # Open AI gym-style stuff)
         self.action_space      = self.ActionSpace(self.nA)
         self.observation_space = self.ObservationSpace(self.nS)
         
-        # Init environment vars
-        self._initRuntimeVars()
-
         # Speed-up helpers
+        # TODO: Move reach.collis to Robot class
         self.reachable = [{} for _ in range(nArms)]
         self.collision = {}
         self.piecesStatusValid = {}
 
-        # Build or load previously build Datamodel
-        self._buildOrLoadMDP()
 
-    def _buildMDP(self):
-
-        print("Filtering valid states ...")
-
-        # Filter out invalid states
-        valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
-        valid_nS = len(valid_states)
-        print(valid_nS)
-
-        states_idx = {}
-        for i, item in enumerate(valid_states):
-            states_idx[item] = i
-
-        print("Computing MDP ...")
-        # Note: MDP is very large. Use numpy
-        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
-        mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int8)
-        mdp_v = np.array(valid_states)
-        mdp_i = {x:i for i,x in enumerate(mdp_v)}
-        for i,s in enumerate(valid_states):
-            for a in range(self.nA):
-               self.reset(s)
-               next_state, reward, done, info = self._step(a)
-               mdp_s[i][a] = states_idx[next_state]
-               mdp_r[i][a] = reward
-            if (i % (valid_nS//10)) == 0:
-                print(10*i//(valid_nS//10),'%')
-
-        # State space layers partition
-        # TODO: prioritized_piecesMap must be generic fr n-pieces
-        prioritized_piecesMap = [0x0, 0x1, 0x2, 0x4, 0x8, 0x3, 0x5, 0x9, 0x6, 0xa, 0xc, 0x7, 0xb, 0xd, 0xe, 0xf]
-        prioritized_status    = [[0,0],[1,0],[2,0],[3,0],[4,0],[0,1],[0,2],[0,3],[0,4],[1,2],[1,3],[1,4],[2,1],[2,3],[2,4],[3,1],[3,2],[3,4],[4,1],[4,2],[4,3]]
-        piecesMap_len = len(prioritized_piecesMap)
-        status_len    = len(prioritized_status)
-        mdp_l = [[] for _ in range(piecesMap_len * status_len)]
-        for i, state in enumerate(mdp_v):
-            armsGridPos, armsStatus, piecesMap = self._ext2intState(state)
-            idx = prioritized_status.index(armsStatus) + status_len*prioritized_piecesMap[piecesMap]
-            mdp_l[idx].append(i)
-
-        mdp = [mdp_s, mdp_r, mdp_v, mdp_i, mdp_l] # next_state, reward, state redution mapping, inverse state reduction mapping, layered partitions
-
-        return mdp
-
-    def _buildOrLoadMDP(self):
-        ''' Build and store to file the MDP model for the first time.
-            Load the MDP model from file the next time
-        '''
-        filename = 'MDP.bin'
-        try:
-            # Load stored MDP model
-            with open(filename, 'rb') as f:
-                self.MDP = pickle.load(f)
-        except:
-            # Build MDP model
-            self.MDP = self._buildMDP()
-
-            # Store MDP model
-            with open(filename, 'wb') as f:
-                pickle.dump(self.MDP, f)
-
-
-    def _initRuntimeVars(self):
-
-        # Robot initial pose (no load)
-        self.robot.reset()
-
+    #############################################################
+    #
+    # Helper functions
+    #
+    #############################################################
 
     def _int2extState(self, armsPos, armsStatus, piecesMap):
         ''' convert internal state representation to a single scalar '''
@@ -391,8 +270,6 @@ class EnvYuMi:
 
         return action
 
-    # Auxiliary functions
-    #
     def _nearestTo(self, item, item_list):
         ''' Find the most similar entry in the item_list '''
         dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in item_list]
@@ -436,7 +313,7 @@ class EnvYuMi:
         else:
             return True
 
-
+    #TODO: Move to Robot class
     def _isRobotPosReachable(self, armsGridPos):
         ''' Check if Arms EEs can reach their target pos '''
 
@@ -528,6 +405,7 @@ class EnvYuMi:
 
         return valid
 
+    #TODO: Move to Robot class
     def _isThereCollision(self, armsGridPos):
         # Memoization technique (save and reuse previous computations)
         N,M,K = self.N, self.M, self.K
@@ -576,8 +454,10 @@ class EnvYuMi:
 
         self.piecesGridPos = [ cfg['start']  for cfg in self.piecesGridCfg ]
 
+    # Move robot part to Robot class
     def render(self):
         ''' Show environment '''
+        #TODO: render (_plot) is both robot and environment
         # Update robot configuration
         pos = [self._logic2ang(i, grid_pos) for i,grid_pos in enumerate(self.armsGridPos)]
         self.robot.setAngles(pos)
@@ -812,42 +692,7 @@ class EnvYuMi:
         ''' Close environment '''
         pass
 
-    def setManualMode(self):
-        ''' Enter interactive mode.
-            Use the mouse to interact with the environment:
-            - Left mouse click : move selected arm to mouse pos
-            - Right mouse click: select arm (nearest to mouse pos)
-        '''
-        self.done = False
-        self._plot()
-
-        cid = self.fig.canvas.mpl_connect('button_press_event', self._manualModeOnclick)
-
-    def _manualModeOnclick(self, event):
-
-        if self.done == True:
-            self.done = False
-            self.reset()
-        else:
-            mouse = np.array([event.xdata, event.ydata, 0])
-
-            # Right click to select arm (the nearest one)
-            if event.button == MouseButton.RIGHT:
-                self.selectedArm = self._nearestTo(mouse, self.robot.getEE())
-
-            # Left click to move the arm
-            else:
-                # Get the grid cell nearest to the mouse selection
-                idx = self._nearestTo(mouse, self.grid)
-
-                # Update robot configuration
-                ang = self.robot.getAngles()
-                ang[self.selectedArm] = self.gridAng[self.selectedArm][idx]
-                self.robot.setAngles(ang)
-
-
-        self._plot()
-
+    # Move robot part to Robot class
     def _plot(self):
 
         plt3d = False
@@ -937,38 +782,48 @@ class EnvYuMi:
 
 
 if __name__ == "__main__":
-    # Example (redefine environment: 4 pieces)
-    #pieces_cfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-    #               'end'   : [ 0.5, -1.5, 0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.3, -0.8, 0],  # Piece 2
-    #               'end'   : [ 1,   -1,   0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.3, -1,   0],  # Piece 3
-    #               'end'   : [ 0.3, -1,   0],
-    #               'nArms' : 1
-    #              },
-    #              {'start' : [-0.6, -1.3, 0],  # Piece 4
-    #               'end'   : [ 0.6, -0.8, 0],
-    #               'nArms' : 1
-    #              }]
-    #              #},
-    #              #{'start' : [-0.7, -0.7, 0],  # Piece 5
-    #              # 'end'   : [ 1.2, -0.4, 0],
-    #              # 'nArms' : 1
-    #              #},
-    #              #{'start' : [-0.8, -1,   0],  # Piece 6
-    #              # 'end'   : [ 0.5, -1.2,   0],
-    #              # 'nArms' : 1
-    #              #},
-    #              #{'start' : [-0.9, -0.5, 0],  # Piece 7
-    #              # 'end'   : [ 1.2, -0.8, 0],
-    #              # 'nArms' : 1
-    #              #}]
-    #env = EnvYuMi(pieces_cfg)
-    env = EnvYuMi()
+
+    # Robot
+    robot = YuMi()
+
+    # Pieces configuration
+    piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
+                  'end'   : [ 0.5, -1.5, 0],
+                  'nArms' : 1
+                 },
+                 {'start' : [-0.3, -0.8, 0],  # Piece 2
+                  'end'   : [ 1,   -1,   0],
+                  'nArms' : 1
+                 },
+                 {'start' : [-0.3, -1,   0],  # Piece 3
+                  'end'   : [ 0.3, -1,   0],
+                  'nArms' : 1
+                 },
+                 {'start' : [-0.6, -1.3, 0],  # Piece 4
+                  'end'   : [ 0.6, -0.8, 0],
+                  'nArms' : 1
+                 }]
+                 #},
+                 #{'start' : [-0.7, -0.7, 0],  # Piece 5
+                 # 'end'   : [ 1.2, -0.4, 0],
+                 # 'nArms' : 1
+                 #},
+                 #{'start' : [-0.8, -1,   0],  # Piece 6
+                 # 'end'   : [ 0.5, -1.2,   0],
+                 # 'nArms' : 1
+                 #},
+                 #{'start' : [-0.9, -0.5, 0],  # Piece 7
+                 # 'end'   : [ 1.2, -0.8, 0],
+                 # 'nArms' : 1
+                 #}]
+
+    # Work area (2D grid definition)
+    work_area = { 
+             'size' : [10,5],                  # XY grid cells
+             'rect' : [-1.35, -0.2, 1.35, 1.6] # Left-top, bottom-right
+           }
+
+    env = env_pickplace(robot, piecesCfg, work_area)
     env.reset()
 
     #
@@ -1030,7 +885,7 @@ if __name__ == "__main__":
     #print("Total valid states (from env.MDP): {} ({}%)".format(cnt, 100*cnt/len(env.MDP[2])))
 
     if True:
-        env.setManualMode()
+        pass
     else:
         for i in range(2000):
             if i%20001 == 0:
