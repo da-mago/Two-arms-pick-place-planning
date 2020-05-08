@@ -12,10 +12,10 @@
 import numpy as np
 import sys
 import pickle
-import env_pickplace
-import yumi
 import time    # sleep
 import imageio # mimsave
+from env_pickplace import env_pickplace
+from Robot_2A2L import Robot_2A2L
 
 def FasterValueIteration(env, states7, V=None, theta=0.0001, discount_factor=1.0):
     ''' Avoid python code :). Let's numpy do the magic.
@@ -256,8 +256,8 @@ def showSolution(policy, create_GIF=False):
 
 if __name__ == "__main__":
 
-    robot = yumi.YuMi()
-    env = env_pickplace.env_pickplace(robot)
+    robot = Robot_2A2L()
+    env = env_pickplace(robot)
     env.reset()
 
     states_val   = env.MDP[2]

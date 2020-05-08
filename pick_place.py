@@ -1,9 +1,9 @@
 import numpy as np
 import time    # sleep
 import imageio # mimsave
-from mdp import mdp
+from mdp_generator import mdp_generator
 from mdp_solver import mdp_solver
-from yumi import YuMi
+from Robot_2A2L import Robot_2A2L
 
 def showSolution(policy, GIF_filename=None):
     ''' Show pick & place solution '''
@@ -35,7 +35,7 @@ def showSolution(policy, GIF_filename=None):
 if __name__ == "__main__":
 
     # Robot
-    robot = YuMi()
+    robot = Robot_2A2L()
 
     # Pieces configuration
     pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                }
 
     # Solve MDP
-    robot_mdp = mdp(robot, pieces, workArea)
+    robot_mdp = mdp_generator(robot, pieces, workArea)
 
     if not robot_mdp.load('MDP.bin'):
         robot_mdp.generate()

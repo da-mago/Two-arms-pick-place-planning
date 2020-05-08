@@ -8,11 +8,11 @@
 #
 
 from env_pickplace import env_pickplace
-from yumi import YuMi
+from Robot_2A2L import Robot_2A2L
 import numpy as np
 import pickle
 
-class mdp(env_pickplace):
+class mdp_generator(env_pickplace):
     def __init__(self, robot, pieces, workArea):
         super().__init__(robot, pieces, workArea)
 
@@ -66,7 +66,7 @@ class mdp(env_pickplace):
         for i,s in enumerate(valid_states):
             for a in range(self.nA):
                self.reset(s)
-               next_state, reward, done, info = self._step(a)
+               next_state, reward, done, info = self._step(a, mode=1)
                mdp_s[i][a] = states_idx[next_state]
                mdp_r[i][a] = reward
             if (i % (valid_nS//10)) == 0:
@@ -174,7 +174,7 @@ class mdp(env_pickplace):
 if __name__ == "__main__":
 
     # Robot
-    robot = YuMi()
+    robot = Robot_2A2L()
 
     # Pieces configuration
     pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1

@@ -6,7 +6,7 @@ import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from matplotlib.backend_bases import MouseButton
-from yumi import YuMi
+from Robot_2A2L import Robot_2A2L
 import code
 
 # Debug functionality
@@ -82,7 +82,7 @@ class env_pickplace:
                 env.step(env.action_space.sample()) # take a random action
             env.close()
     '''
-    def __init__(self, robot, pieces_cfg, work_area):
+    def __init__(self, robot, pieces_cfg):
 
         #
         # Environment definition (YuMi + pieces)
@@ -134,7 +134,7 @@ class env_pickplace:
         #
         # Note: part of the code is specific for two-arm robots (TODO: refactor)
         #
-        N,M = work_area['size']
+        N,M = self.robot.work_area['size']
         K = len(self.piecesCfg)
         self.N, self.M, self.K = N,M,K
  
@@ -147,15 +147,15 @@ class env_pickplace:
         self.single_nA = 7
         self.nA = self.single_nA**2 - 1
 
-        # Precompute robot (angles) configuration for all arms positions
-        #
-        # 1. Define 2D grid of EE positions
-        x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
-        x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
-        y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
-        print(x, y,x_delta, y_delta)
+        ## Precompute robot (angles) configuration for all arms positions
+        ##
+        ## 1. Define 2D grid of EE positions
+        #x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
+        #x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
+        #y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
+        #print(x, y,x_delta, y_delta)
 
-        self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
+        #self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
 
         # 2. The pieces will be part of the grid, keeping the N*M logical grid structure.
         #    However, physically, grid cells will not be equidistant anymore.
@@ -166,25 +166,21 @@ class env_pickplace:
         #
         # Note: Risk! several pieces may fall in the same cell
         #
+        #TODO: update grid in Robot class (create a method for this)
+        # Build piecesGridCfg (grid cells equivalence)
         self.piecesGridCfg = []
         for cfg in self.piecesCfg:
-            # piece i initial pos
-            idx_i = self._nearestTo(cfg['start'], self.grid)
-            self.grid[idx_i] = cfg['start']
+            xy_i = self._idx2xy( self._nearestTo(cfg['start'], self.robot.grid) )
+            xy_j = self._idx2xy( self._nearestTo(cfg['end'],   self.robot.grid) )
 
-            # piece i final pos
-            idx_j = self._nearestTo(cfg['end'], self.grid)
-            self.grid[idx_j] = cfg['end']
+            self.piecesGridCfg.append( { 'start': xy_i, 'end'  : xy_j })
 
-            # build piecesGridCfg (grid cells equivalence)
-            pgCfg = {
-                      'start': self._idx2xy(idx_i), 
-                      'end'  : self._idx2xy(idx_j)
-                    }
-            self.piecesGridCfg.append(pgCfg)
+            # update robot grid
+            self.robot.updateGrid(xy_i, cfg['start'])
+            self.robot.updateGrid(xy_j, cfg['end'])
 
         # 3. Compute corresponding robot (angles) configurations
-        # TODO: gridAng = self.robot.getGridAnd()
+        gridAng = self.robot.getGridAngles()
         # TODO: esto deberia gestionarlo la clase Robot()
         self.robot.setAngles([[np.pi, 0.3], [0, -1]]) # Initial position (very near to first position)
         
@@ -313,34 +309,30 @@ class env_pickplace:
         else:
             return True
 
-    #TODO: Move to Robot class
-    def _isRobotPosReachable(self, armsGridPos):
-        ''' Check if Arms EEs can reach their target pos '''
+    ##TODO: Move to Robot class
+    #def _isRobotPosReachable(self, armsGridPos):
+    #    ''' Check if Arms EEs can reach their target pos '''
+    #    # Check physical EE locations
+    #    res = True
+    #    #phyPos = [self.grid[ self._xy2idx(pos) ] for pos in armsGridPos]
+    #    #for pos, cfg in zip(phyPos, self.robot.cfg):
+    #    for i, (lpos, cfg) in enumerate(zip(armsGridPos, self.robot.cfg)):
+    #        idx = self._xy2idx(lpos)
+    #        phyPos = self.grid[idx]
+    #        # Memoization (reuse previous checks))
+    #        if idx in self.reachable[i].keys():
+    #            if self.reachable[i][idx] == False:
+    #                res = False
+    #                break
+    #        # Check it (and store check)
+    #        else:
+    #            if np.linalg.norm(np.array(phyPos) - np.array(cfg['modelPos'])) >= 1.95: # two links 1m each (particular to default config)
+    #                res = False
+    #                self.reachable[i][idx] = False
+    #                break
+    #            self.reachable[i][idx] = True
 
-        # Memoization technique (save and reuse previous computations)
-
-
-        # Check physical EE locations
-        res = True
-        #phyPos = [self.grid[ self._xy2idx(pos) ] for pos in armsGridPos]
-        #for pos, cfg in zip(phyPos, self.robot.cfg):
-        for i, (lpos, cfg) in enumerate(zip(armsGridPos, self.robot.cfg)):
-            idx = self._xy2idx(lpos)
-            phyPos = self.grid[idx]
-            # Memoization (reuse previous checks))
-            if idx in self.reachable[i].keys():
-                if self.reachable[i][idx] == False:
-                    res = False
-                    break
-            # Check it (and store check)
-            else:
-                if np.linalg.norm(np.array(phyPos) - np.array(cfg['modelPos'])) >= 1.95: # two links 1m each (particular to default config)
-                    res = False
-                    self.reachable[i][idx] = False
-                    break
-                self.reachable[i][idx] = True
-
-        return res
+    #    return res
 
     def _isPiecesStatusValid(self, armsGridPos, armsStatus, piecesMap):
         ''' Check pieces status coherence '''
@@ -405,26 +397,26 @@ class env_pickplace:
 
         return valid
 
-    #TODO: Move to Robot class
-    def _isThereCollision(self, armsGridPos):
-        # Memoization technique (save and reuse previous computations)
-        N,M,K = self.N, self.M, self.K
-        collision_idx = 0
-        for x,y in armsGridPos:
-            collision_idx *= (N*M)
-            collision_idx += self._xy2idx([x,y])
+    ##TODO: Move to Robot class
+    #def _isThereCollision(self, armsGridPos):
+    #    # Memoization technique (save and reuse previous computations)
+    #    N,M,K = self.N, self.M, self.K
+    #    collision_idx = 0
+    #    for x,y in armsGridPos:
+    #        collision_idx *= (N*M)
+    #        collision_idx += self._xy2idx([x,y])
 
-        if collision_idx in self.collision.keys():
-            return self.collision[collision_idx]
+    #    if collision_idx in self.collision.keys():
+    #        return self.collision[collision_idx]
 
-        # Compute collision
-        robot_ang = [grid_ang[self._xy2idx(grid_pos)] for grid_pos, grid_ang in zip(armsGridPos, self.gridAng)]
-        collision = self.robot._checkCollision(robot_ang, 0.40)
+    #    # Compute collision
+    #    robot_ang = [grid_ang[self._xy2idx(grid_pos)] for grid_pos, grid_ang in zip(armsGridPos, self.gridAng)]
+    #    collision = self.robot._checkCollision(robot_ang, 0.40)
 
-        # Store computation
-        self.collision[collision_idx] = collision
+    #    # Store computation
+    #    self.collision[collision_idx] = collision
 
-        return collision
+    #    return collision
 
     def _isGoalMet(self):
         ''' Is MDP solved? '''
@@ -534,10 +526,10 @@ class env_pickplace:
         #
         self.reset(state)
 
-        valid_state = self._isRobotPosReachable(self.armsGridPos)
+        valid_state = self.robot.checkReachability(self.armsGridPos)
 
         if valid_state:
-            valid_state = not self._isThereCollision(self.armsGridPos)
+            valid_state = not self.robot.checkCollision(self.armsGridPos)
 
         if valid_state:
             valid_state = self._isPiecesStatusValid(self.armsGridPos, self.armsStatus, self.piecesMap)
@@ -552,12 +544,18 @@ class env_pickplace:
         #    return state, reward, done, info
 
     def _step(self, action, mode=0):
-        ''' Take an action. Make the full processing
+        ''' Being on state 's', takes action 'a' and returns the next state 's'
+            and reward 'r'. 
 
-            action: scalar in the range [0, self.nA-1]
-            mode  : 0 (normal), 1 (pick&place always succeeds), 2 (pick and place always fails)
+            If the action 'a' is invalid (grid boundaries exceeded, robot collision,
+            ...) on state 's', state won't change and reward will be highly negative.
 
-            PickPlace trick must be done per piece
+            Note: 'mode' is an internal argument to trick the pick&place actions.
+                  When building the MDP to be agnostic of the pieces configuration,
+                  pick&place actions are not resolved. Setting 'mode' to 1,
+                  leaves a special mark in the reward. This mark will be later
+                  used to update the MDP once the specific set of pieces 
+                  configuration is known.
         '''
 
         # Current state is valid. Let's process the action!
@@ -622,38 +620,36 @@ class env_pickplace:
             # pick or place
             #
             elif a == 4 or a == 5:
-                # mark it, but do not abort the remaining checks
-                pick_place_mark = True
-            
-            # As mentioned above, do not analyze these actions for a specific sceneario
-            # (pieces configuration)
-            #
-            ## pick up
-            #elif a == 4:
-            #    valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
-            #    if valid_state:
-            #        next_arms_status[i]  = piece_idx + 1
-            #        next_pieces_map     &= ~(1<<piece_idx)
-            #    else:
-            #        break # Nothing to pick up
-            ## drop off
-            #elif a == 5:
-            #    valid_state = self._isDropOffActionValid(pos, self.armsStatus[i])
-            #    if valid_state:
-            #        next_arms_status[i]  = 0
-            #    else:
-            #        break # Nothing to drop off
-            ## stay
+                if mode == 1:
+                    # mark it, but do not abort the remaining checks
+                    pick_place_mark = True
+                else:
+                    # pick up
+                    elif a == 4:
+                        valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
+                        if valid_state:
+                            next_arms_status[i]  = piece_idx + 1
+                            next_pieces_map     &= ~(1<<piece_idx)
+                        else:
+                            break # Nothing to pick up
+                    # drop off
+                    elif a == 5:
+                        valid_state = self._isDropOffActionValid(pos, self.armsStatus[i])
+                        if valid_state:
+                            next_arms_status[i]  = 0
+                        else:
+                            break # Nothing to drop off
+            # stay
             else:
                 move_both_arms  = False # One arm stays still
 
             next_pos.append(pos)
 
         if valid_state:
-            valid_state = self._isRobotPosReachable(next_pos)
+            valid_state = self.robot.checkReachability(next_pos)
 
         if valid_state:
-            valid_state = not self._isThereCollision(next_pos)
+            valid_state = not self.robot.checkCollision(next_pos)
 
         if valid_state:
             valid_state = self._isPiecesStatusValid(next_pos, next_arms_status, next_pieces_map)
@@ -710,20 +706,8 @@ class env_pickplace:
 
         plt.axis([-3,3,-3,3]) # TODO: no poner a fuego
 
-        # Show the environment
-        #robotColor = 'r' if self.robot._checkCollision(0.3) else 'grey'
-        robotColor = 'grey'
-
         # Robot
-        #for vertices in self.robot.getLinksPos():
-        #    x,y,z =  np.array(vertices).T
-
-        #    if plt3d:
-        #        self.line, = self.ax.plot3D(x, y, z, c=robotColor, lw=8)
-        #        self.line, = self.ax.plot3D(x, y, z, c='r', marker='o')
-        #    else:
-        #        self.line, = self.ax.plot(x, y, c=robotColor, lw=8)
-        #        self.line, = self.ax.plot(x, y, c='r', marker='o')
+        self.robot.plot(self.armsGridPos, self.ax, plt3d)
 
         # Pieces
         partsColor ='bgrcmykbgrcmyk'
@@ -748,7 +732,7 @@ class env_pickplace:
 
         # Grid
         x,y,z = [],[],[]
-        for vertices in self.grid:
+        for vertices in self.robot.grid:
             xi,yi,zi =  np.array(vertices).T
             x.append(xi)
             y.append(yi)
@@ -784,46 +768,34 @@ class env_pickplace:
 if __name__ == "__main__":
 
     # Robot
-    robot = YuMi()
+    robot = Robot_2A2L()
 
     # Pieces configuration
     piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
                   'end'   : [ 0.5, -1.5, 0],
-                  'nArms' : 1
                  },
                  {'start' : [-0.3, -0.8, 0],  # Piece 2
                   'end'   : [ 1,   -1,   0],
-                  'nArms' : 1
                  },
                  {'start' : [-0.3, -1,   0],  # Piece 3
                   'end'   : [ 0.3, -1,   0],
-                  'nArms' : 1
                  },
                  {'start' : [-0.6, -1.3, 0],  # Piece 4
                   'end'   : [ 0.6, -0.8, 0],
-                  'nArms' : 1
                  }]
                  #},
                  #{'start' : [-0.7, -0.7, 0],  # Piece 5
                  # 'end'   : [ 1.2, -0.4, 0],
-                 # 'nArms' : 1
                  #},
                  #{'start' : [-0.8, -1,   0],  # Piece 6
                  # 'end'   : [ 0.5, -1.2,   0],
-                 # 'nArms' : 1
                  #},
                  #{'start' : [-0.9, -0.5, 0],  # Piece 7
                  # 'end'   : [ 1.2, -0.8, 0],
-                 # 'nArms' : 1
                  #}]
 
-    # Work area (2D grid definition)
-    work_area = { 
-             'size' : [10,5],                  # XY grid cells
-             'rect' : [-1.35, -0.2, 1.35, 1.6] # Left-top, bottom-right
-           }
 
-    env = env_pickplace(robot, piecesCfg, work_area)
+    env = env_pickplace(robot, piecesCfg)
     env.reset()
 
     #

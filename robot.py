@@ -6,10 +6,15 @@ import lines3ddistance as l2l                      # distance between 2 segment 
 
 class Robot:
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, work_area):
         ''' Init robot '''
         self.cfg = cfg
         self.robot = [ tinyik.Actuator(arm_cfg['model']) for arm_cfg in cfg ]
+
+        x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
+        x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
+        y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
+        self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
 
         self.reset()
 
@@ -50,7 +55,10 @@ class Robot:
         ''' Get number of arms '''
         return len(self.robot)
 
-    def _checkCollision(self, pose, margin=0.1):
+    def checkReachability(self, armsGridPos):
+        pass
+
+    def checkCollision(self, pose, margin=0.1):
         ''' Check robot collision in its current pose
 
             Margin argument defines the minimum distance allowed between arms. 
@@ -107,13 +115,37 @@ class Robot:
         # Check collision during path
         collision = False
         for pose in poses:
-            if self._checkCollision(pose, margin=0.3):
+            if self.checkCollision(pose, margin=0.3):
                 collision = True
                 break
 
         return collision
 
-    def _targetGetTime(self, target):
+    def getGridAngles():
+        ''' Compute robot (angles) configurations 
+
+            Trick: Set an initial robot configuration and then move across the
+                   the grid (by little steps), reading the robot configuration.
+        '''
+
+        self.setAngles([[np.pi, 0.3], [0, -1]]) # Initial position (very near to first position)
+        
+        nArms = self.getNumArms()
+        self.gridAng = [ [] for _ in range(nArms)]
+        for pos in self.grid:
+            # Re-position robot and read configuration
+            self.setEE([pos for _ in range(nArms)])
+            angles = self.getAngles()
+            for i,ang in enumerate(angles):
+                self.gridAng[i].append(ang)
+
+    def updateGrid(lpos, ppos):
+        ''' Update #grid positions where pieces are assigned '''
+        #idx = ...(lpos)
+        #self.grid[idx] = ppos
+        pass
+
+    def targetGetTime(self, target):
         ''' Measure time (s) from current pose to a new one
 
             'target' is a list of points in 3D space (one per arm)
@@ -136,3 +168,15 @@ class Robot:
         # Assume constant angular velocity
         return sec 
 
+
+    def plot(self, armsGridPos, ax, plt3d):
+        ''' Draw EEs position (just a circle) '''
+        for vertices in self.getLinksPos():
+            x,y,z =  np.array(vertices).T
+
+            if plt3d:
+                ax.plot3D(x, y, z, c='grey', lw=8)
+                ax.plot3D(x, y, z, c='r', marker='o')
+            else:
+                ax.plot(x, y, c='grey', lw=8)
+                ax.plot(x, y, c='r', marker='o')

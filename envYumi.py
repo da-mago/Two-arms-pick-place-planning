@@ -6,7 +6,7 @@ import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from matplotlib.backend_bases import MouseButton
-from yumi import YuMi
+from Robot_2A2L import Robot_2A2L
 import code
 
 # Debug functionality
@@ -85,9 +85,9 @@ class EnvYuMi:
     def __init__(self, pieces_cfg=None):
 
         #
-        # Environment definition (YuMi + pieces)
+        # Environment definition (Robot + pieces)
         #
-        self.robot = YuMi()
+        self.robot = Robot_2A2L()
 
         if pieces_cfg == None:
             self.piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
@@ -139,12 +139,9 @@ class EnvYuMi:
             self.piecesCfg = pieces_cfg
 
 
-        # Robot for testing moves without affecting environment robot
-        self.test_robot = YuMi()
-
         # MDP
         #
-        # YuMi robot is a two arm robot with 14 free dregree (seven per arm).
+        # Robot is a two arm robot with 14 free dregree (seven per arm).
         # 
         # This MDP, by nature, should be modeled with continuous action space 
         # (action ending in any arbitrary 14-angles configuration) and 
@@ -203,7 +200,7 @@ class EnvYuMi:
         # Precompute robot (angles) configuration for all arms positions
         #
         # 1. Define 2D grid of EE positions
-        #    - data manually selected from YuMi robot data
+        #    - data manually selected from the robot data
         grid_x, grid_y =  -1.35, -0.2  # top-left 2D grid corner
         step_x, step_y =   0.3,  -0.3  # distance between cells
         #grid_x, grid_y =  -1.5,  -0.2   # top-left 2D grid corner
