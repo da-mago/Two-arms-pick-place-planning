@@ -3,7 +3,8 @@ import time    # sleep
 import imageio # mimsave
 from mdp_generator import mdp_generator
 from mdp_solver import mdp_solver
-from Robot_2A2L import Robot_2A2L
+#from robot_2A2L import Robot_2A2L
+from robot_YuMi import Robot_YuMi
 
 def showSolution(policy, GIF_filename=None):
     ''' Show pick & place solution '''
@@ -35,30 +36,40 @@ def showSolution(policy, GIF_filename=None):
 if __name__ == "__main__":
 
     # Robot
-    robot = Robot_2A2L()
+    #robot = Robot_2A2L()
+    robot = Robot_YuMi()
 
     # Pieces configuration
-    pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-               'end'   : [ 0.5, -1.5, 0],
-              },
-              {'start' : [-0.3, -0.8, 0],  # Piece 2
-               'end'   : [ 1,   -1,   0],
-              },
-              {'start' : [-0.3, -1,   0],  # Piece 3
-               'end'   : [ 0.3, -1,   0],
-              },
-              {'start' : [-0.6, -1.3, 0],  # Piece 4
-               'end'   : [ 0.6, -0.8, 0],
+    # ... for YuMi
+    pieces = [{'start' : [-350, 450, 0],  # Piece 1
+               'end'   : [ 350, 400, 0],
+              },                     
+              {'start' : [-350, 300, 0],  # Piece 2
+               'end'   : [ 150, 300, 0],
+              },                     
+              {'start' : [-150, 450, 0],  # Piece 3
+               'end'   : [ 250, 250, 0],
+              },                     
+              {'start' : [-50,  350, 0],  # Piece 4
+               'end'   : [ 250, 500, 0],
               }]
+    # ... for 2A2L
+    #pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
+    #           'end'   : [ 0.5, -1.5, 0],
+    #          },
+    #          {'start' : [-0.3, -0.8, 0],  # Piece 2
+    #           'end'   : [ 1,   -1,   0],
+    #          },
+    #          {'start' : [-0.3, -1,   0],  # Piece 3
+    #           'end'   : [ 0.3, -1,   0],
+    #          },
+    #          {'start' : [-0.6, -1.3, 0],  # Piece 4
+    #           'end'   : [ 0.6, -0.8, 0],
+    #          }]
 
-    # Work area
-    workArea = { 
-               'size' : [10,5],                # XY grid cells
-               'rect' : [-1.35, -0.2, 1.35, 1] # Left-top, bottom-right
-               }
 
     # Solve MDP
-    robot_mdp = mdp_generator(robot, pieces, workArea)
+    robot_mdp = mdp_generator(robot, pieces)
 
     if not robot_mdp.load('MDP.bin'):
         robot_mdp.generate()

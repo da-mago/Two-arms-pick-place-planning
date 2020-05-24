@@ -27,9 +27,9 @@ class Robot_2A2L(Robot):
 
         # Work area (2D grid definition)
         work_area = { 
-                 'size' : [10,5],                  # XY grid cells
-                 'rect' : [-1.35, -0.2, 1.35, 1.6] # Left-top, bottom-right
-                    }
+            'size' : [10,5],                  # XY grid cells
+            'rect' : [-1.35, -0.2, 1.35, 1.6] # Left-top, bottom-right
+        }
 
         super().__init__(cfg, work_area)
 

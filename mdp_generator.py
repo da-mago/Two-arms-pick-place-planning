@@ -8,13 +8,14 @@
 #
 
 from env_pickplace import env_pickplace
-from Robot_2A2L import Robot_2A2L
+#from robot_2A2L import Robot_2A2L
+from robot_YuMi import Robot_YuMi
 import numpy as np
 import pickle
 
 class mdp_generator(env_pickplace):
-    def __init__(self, robot, pieces, workArea):
-        super().__init__(robot, pieces, workArea)
+    def __init__(self, robot, pieces):
+        super().__init__(robot, pieces)
 
     def load(self, filename):
         ''' Load MDP from file '''
@@ -47,6 +48,7 @@ class mdp_generator(env_pickplace):
         '''
 
         print("Filtering valid states ...")
+        print(self.nS)
 
         # Filter out invalid states
         valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
@@ -91,8 +93,8 @@ class mdp_generator(env_pickplace):
     
         offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
     
-        p_ini = [cfg['start'] for cfg in self.piecesGridCfg]
-        p_end = [cfg['end']   for cfg in self.piecesGridCfg]
+        p_ini = [pos for pos in self.piecesLocation['start']]
+        p_end = [pos for pos in self.piecesLocation['end']  ]
     
         states_idx = self.MDP[3]
         for arm in range(2):
@@ -174,33 +176,44 @@ class mdp_generator(env_pickplace):
 if __name__ == "__main__":
 
     # Robot
-    robot = Robot_2A2L()
+    #robot = Robot_2A2L()
+    robot = Robot_YuMi()
 
     # Pieces configuration
-    pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-               'end'   : [ 0.5, -1.5, 0],
-              },
-              {'start' : [-0.3, -0.8, 0],  # Piece 2
-               'end'   : [ 1,   -1,   0],
-              },
-              {'start' : [-0.3, -1,   0],  # Piece 3
-               'end'   : [ 0.3, -1,   0],
-              },
-              {'start' : [-0.6, -1.3, 0],  # Piece 4
-               'end'   : [ 0.6, -0.8, 0],
+    # ... for YuMi
+    pieces = [{'start' : [-350, 450, 0],  # Piece 1
+               'end'   : [ 350, 400, 0],
+              },                     
+              {'start' : [-350, 300, 0],  # Piece 2
+               'end'   : [ 150, 300, 0],
+              },                     
+              {'start' : [-150, 450, 0],  # Piece 3
+               'end'   : [ 250, 250, 0],
+              },                     
+              {'start' : [-50,  350, 0],  # Piece 4
+               'end'   : [ 250, 500, 0],
               }]
+    # ... for 2A2L
+    #pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
+    #           'end'   : [ 0.5, -1.5, 0],
+    #          },
+    #          {'start' : [-0.3, -0.8, 0],  # Piece 2
+    #           'end'   : [ 1,   -1,   0],
+    #          },
+    #          {'start' : [-0.3, -1,   0],  # Piece 3
+    #           'end'   : [ 0.3, -1,   0],
+    #          },
+    #          {'start' : [-0.6, -1.3, 0],  # Piece 4
+    #           'end'   : [ 0.6, -0.8, 0],
+    #          }]
 
-    # Work area
-    workArea = { 
-               'size' : [10,5],                # XY grid cells
-               'rect' : [-1.35, -0.2, 1.35, 1] # Left-top, bottom-right
-               }
 
-    mdp_test = mdp(robot, pieces, workArea)
+    mdp_test = mdp_generator(robot, pieces)
 
     if not mdp_test.load('MDP.bin'):
         mdp_test.generate()
         mdp_test.save('MDP.bin')
 
-    mdp_test.update(pieces)
+    #mdp_test.update(pieces)
+    #mdp_test.update()
 

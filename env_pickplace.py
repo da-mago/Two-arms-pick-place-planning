@@ -6,7 +6,8 @@ import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from matplotlib.backend_bases import MouseButton
-from Robot_2A2L import Robot_2A2L
+from robot_2A2L import Robot_2A2L
+from robot_YuMi import Robot_YuMi
 import code
 
 # Debug functionality
@@ -90,15 +91,16 @@ class env_pickplace:
         self.robot     = robot
         self.piecesCfg = pieces_cfg
 
-        # MDP
-        #
-        # YuMi robot is a two arm robot with 14 free dregree (seven per arm).
+        # 'robot' object describes a two-arm robot with n degrees of freedom.
         # 
-        # This MDP, by nature, should be modeled with continuous action space 
-        # (action ending in any arbitrary 14-angles configuration) and 
-        # continuous state space (any 14-angles configuration).
+        # Although the robot configuration seems to live in the continuos domain
+        # (any angle value for each joint), since the manufacturer defines some 
+        # constraints (angle range and resolution), you could consider the robot
+        # living in the discrete domain. Anyway, there is such a huge number of
+        # states (YuMi robot: 14^discret_values_per_joint), that it does not 
+        # matter in which domain you consider the robot lives.
         #
-        # Simplifications:
+        # Let's assume some simplifications to reduce the problem complexity:
         # - Do not work with robot configuration (angles) but with its EE 
         #   position. This will require to precompute robot configuration 
         #   (angles) for all EE potential positions.
@@ -107,9 +109,10 @@ class env_pickplace:
         # - Discretize state space: N*M grid (EndEffector 2D positions).
         #   Pick&Place operations are considered atomic operations (ignored the
         #   up/down movement in the state space)
+        #   - You can consider some extra states for the pick&place actions in 
+        #     order to match the time with any move in 2D.
         # - Discretize action space: up/down/left/rigth/pick/place/stay 
         #   (movements constrained to reach adjacent grid cells)
-        # - Assume pick and place operations last the same as any other move
         # - Do not base MDP reward on arms movement interval time. Simplify
         #   considering '-1' reward per each move.
         #
@@ -118,91 +121,67 @@ class env_pickplace:
          
          
         # State space:
-        # - Arms move in a 2D grid N*M (init and target pieces positions will 
-        #   replace some of the standard grid positions)
+        # - Robot moves in a 2D M*N grid
+        # - Each state is internally represented by:
+        #   - arms position (x,y)
+        #   - arms status (arm carrying the piece i or none)
+        #   - pieces status (piece pending to be picke up)
+        # - Each state is externally represented by a single scalar (see
+        #   _int2extState() function)
         #
-        #      ____ piece 1 init pos
-        #     /
-        #   . v .   .   .
-        #   . .     .   .
-        #   .   .   .   .
-        #
-        # - MDP state is represented by a scalar number built from internal state representation:
-        #   - arms position (x,y,z)
-        #   - arms status (carrying piece i or none)
-        #   - pieces status (pieces pending to be picke up)
-        #
-        # Note: part of the code is specific for two-arm robots (TODO: refactor)
-        #
-        N,M = self.robot.work_area['size']
-        K = len(self.piecesCfg)
-        self.N, self.M, self.K = N,M,K
+        self.M, self.N = self.robot.M, self.robot.N
+        self.K = len(self.piecesCfg)
  
+        # Initial state (internal representation) 
         self.armsGridPos, self.armsStatus, self.piecesMap = self._getDefaultResetState()
 
-        self.nS = ((N*M)**2) * (2**K) * ((K+1)**2)
+        # State space size
+        self.nS = ((self.M*self.N)**2) * (2**self.K) * ((self.K+1)**2)
 
-        # Action space:
-        # - Any combination of both arm actions (up/up, up/left, down/up, ... except stay/stay)
+        # Action space size: 
         self.single_nA = 7
-        self.nA = self.single_nA**2 - 1
+        self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
 
-        ## Precompute robot (angles) configuration for all arms positions
-        ##
-        ## 1. Define 2D grid of EE positions
-        #x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
-        #x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
-        #y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
-        #print(x, y,x_delta, y_delta)
-
-        #self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
-
-        # 2. The pieces will be part of the grid, keeping the N*M logical grid structure.
-        #    However, physically, grid cells will not be equidistant anymore.
+        # Pieces locations are also mapped to the same robot 2D grid (even if
+        # the real piece position does not match the 2D grid point)
         #
-        #             .   .   .   .         .   .   .   .
-        #             .   .   .   .   -->   . .     .   .
-        #             .   .   .   .         .   .   .   .
+        #                              ____ piece pos (1,1)
+        #   (0,0)                     |
+        #     .   .   .   .         . v .   .   .
+        #     .   .   .   .   -->   . .     .   .
+        #     .   .   .   .         .   .   .   .
         #
-        # Note: Risk! several pieces may fall in the same cell
+        # Note: Risk! several pieces might fall in the same grid cell
+        # Note: Real pieces location are stored in order to move the robot to
+        #       the right positions, instead of using the standard 2D defined
+        #       grid.
         #
-        #TODO: update grid in Robot class (create a method for this)
-        # Build piecesGridCfg (grid cells equivalence)
-        self.piecesGridCfg = []
+        self.piecesLocation = { 'start':[], 'end':[] }
         for cfg in self.piecesCfg:
-            xy_i = self._idx2xy( self._nearestTo(cfg['start'], self.robot.grid) )
-            xy_j = self._idx2xy( self._nearestTo(cfg['end'],   self.robot.grid) )
+            # find corresponding grid location for each piece
+            xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
+            xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
 
-            self.piecesGridCfg.append( { 'start': xy_i, 'end'  : xy_j })
+            self.piecesLocation['start'].append(xy_i)
+            self.piecesLocation['end'  ].append(xy_j)
 
-            # update robot grid
-            self.robot.updateGrid(xy_i, cfg['start'])
-            self.robot.updateGrid(xy_j, cfg['end'])
-
-        # 3. Compute corresponding robot (angles) configurations
-        gridAng = self.robot.getGridAngles()
-        # TODO: esto deberia gestionarlo la clase Robot()
-        self.robot.setAngles([[np.pi, 0.3], [0, -1]]) # Initial position (very near to first position)
-        
-        nArms = self.robot.getNumArms()
-        self.gridAng = [ [] for _ in range(nArms)]
-        for pos in self.grid:
-            self.robot.setEE([pos for _ in range(nArms)])
-            angles = self.robot.getAngles()
-            for i,ang in enumerate(angles):
-                self.gridAng[i].append(ang)
+            ## update robot grid
+            print(xy_i, self._xy2idx(xy_i), cfg['start'])
+            print(xy_j, self._xy2idx(xy_j), cfg['end'])
+            self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
+            self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
 
         # Pieces current pos
-        self.piecesGridPos = [ cfg['start']  for cfg in self.piecesGridCfg ]
+        self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
 
+#        # Get robot (angles) configurations
+#        self.gridAng = self.robot.getConfig()
+#
         # Open AI gym-style stuff)
         self.action_space      = self.ActionSpace(self.nA)
         self.observation_space = self.ObservationSpace(self.nS)
         
         # Speed-up helpers
-        # TODO: Move reach.collis to Robot class
-        self.reachable = [{} for _ in range(nArms)]
-        self.collision = {}
         self.piecesStatusValid = {}
 
 
@@ -266,73 +245,48 @@ class env_pickplace:
 
         return action
 
+    def _nearest2DTo(self, item, item_list):
+        ''' Find the most similar entry in the item_list (ignore Z) '''
+        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item[0:-1], p[0:-1]))) for p in item_list]
+        return self._idx2xy(np.argmin(dist))
+
     def _nearestTo(self, item, item_list):
         ''' Find the most similar entry in the item_list '''
         dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in item_list]
-        return np.argmin(dist) 
+        return self._idx2xy(np.argmin(dist))
 
     def _xy2idx(self, xy):
         ''' xy grid pos to index '''
         x,y = xy
-        return x*self.M + y
+        return x + y*self.M
 
     def _idx2xy(self, idx):
         ''' xy grid pos to index '''
-        return [idx // self.M, idx % self.M]
+        return [idx % self.M, idx // self.M]
 
     def _logic2phy(self, pos):
         ''' convert logical grid cell pos to physical 3D point
             [0,1] -> [-1.35, -0.5, 0]
         '''
-        return self.grid[ self._xy2idx(pos) ]
+        return self.robot.location[ self._xy2idx(pos) ]
 
     def _phy2logic(self, pos):
         ''' convert physical 3D point to logical grid cell pos
             [-1.05, -0.8, 0] -> [1,2]
         '''
         # Do not compare floats. Find the most similar cell pos
-        idx = self._nearestTo(pos, self.grid)
-        return self._idx2toxy(idx)
+        return self._nearestTo(pos, self.robot.location)
 
-    def _logic2ang(self, arm_idx, pos):
-        ''' convert logical grid cell pos to robot angles configuration
-            [0,1] -> [2.61814353, 2.11034636]
-        '''
-        return self.gridAng[arm_idx][ self._xy2idx(pos) ]
-
+#    def _logic2ang(self, arm_idx, pos):
+#        ''' convert logical grid cell pos to robot angles configuration
+#            [0,1] -> [2.61814353, 2.11034636]
+#        '''
+#        return self.gridAng[arm_idx][ self._xy2idx(pos) ]
+#
     def _isArmsGridPosValid(self, pos):
         ''' Check if pos is inside the grid boundaries '''
         x,y = pos
-        N,M = self.N, self.M
-        if ((x >= N) or (x < 0) or (y >= M) or (y < 0)):
-            return False
-        else:
-            return True
-
-    ##TODO: Move to Robot class
-    #def _isRobotPosReachable(self, armsGridPos):
-    #    ''' Check if Arms EEs can reach their target pos '''
-    #    # Check physical EE locations
-    #    res = True
-    #    #phyPos = [self.grid[ self._xy2idx(pos) ] for pos in armsGridPos]
-    #    #for pos, cfg in zip(phyPos, self.robot.cfg):
-    #    for i, (lpos, cfg) in enumerate(zip(armsGridPos, self.robot.cfg)):
-    #        idx = self._xy2idx(lpos)
-    #        phyPos = self.grid[idx]
-    #        # Memoization (reuse previous checks))
-    #        if idx in self.reachable[i].keys():
-    #            if self.reachable[i][idx] == False:
-    #                res = False
-    #                break
-    #        # Check it (and store check)
-    #        else:
-    #            if np.linalg.norm(np.array(phyPos) - np.array(cfg['modelPos'])) >= 1.95: # two links 1m each (particular to default config)
-    #                res = False
-    #                self.reachable[i][idx] = False
-    #                break
-    #            self.reachable[i][idx] = True
-
-    #    return res
+        return not ((x >= self.M) or (x < 0) or (y >= self.N) or (y < 0))
 
     def _isPiecesStatusValid(self, armsGridPos, armsStatus, piecesMap):
         ''' Check pieces status coherence '''
@@ -361,7 +315,7 @@ class env_pickplace:
         # - When the job is done, at least one arm should be at a target piece position
         if res == True:
             if (piecesMap == 0) and np.sum(armsStatus) == 0:
-                tmp = [ p1==p2['end'] for p1 in armsGridPos for p2 in self.piecesGridCfg ]
+                tmp = [ p1==p2 for p1 in armsGridPos for p2 in self.piecesLocation['end'] ]
                 res = True in tmp
 
 
@@ -376,9 +330,9 @@ class env_pickplace:
         piece = 0
 
         if arm_status == 0:
-            for i,piece_pos in enumerate(self.piecesGridCfg):
+            for i,piece_pos in enumerate(self.piecesLocation['start']):
                 if pieces_map & 0x01:
-                    if piece_pos['start'] == arm_grid_pos:
+                    if piece_pos == arm_grid_pos:
                         valid = True
                         piece = i
                         break
@@ -391,44 +345,15 @@ class env_pickplace:
         valid = False
 
         if arm_status > 0:
-            piece_pos = self.piecesGridCfg[arm_status-1]        
-            if piece_pos['end'] == arm_grid_pos:
+            piece_pos = self.piecesLocation['end'][arm_status-1]        
+            if piece_pos == arm_grid_pos:
                 valid = True
 
         return valid
 
-    ##TODO: Move to Robot class
-    #def _isThereCollision(self, armsGridPos):
-    #    # Memoization technique (save and reuse previous computations)
-    #    N,M,K = self.N, self.M, self.K
-    #    collision_idx = 0
-    #    for x,y in armsGridPos:
-    #        collision_idx *= (N*M)
-    #        collision_idx += self._xy2idx([x,y])
-
-    #    if collision_idx in self.collision.keys():
-    #        return self.collision[collision_idx]
-
-    #    # Compute collision
-    #    robot_ang = [grid_ang[self._xy2idx(grid_pos)] for grid_pos, grid_ang in zip(armsGridPos, self.gridAng)]
-    #    collision = self.robot._checkCollision(robot_ang, 0.40)
-
-    #    # Store computation
-    #    self.collision[collision_idx] = collision
-
-    #    return collision
-
     def _isGoalMet(self):
         ''' Is MDP solved? '''
         return ((self.piecesMap == 0) and (np.sum(self.armsStatus) == 0))
-        #if self.piecesMap != 0:
-        #    return False
-        #for status in self.armsStatus:
-        #    if status > 0:
-        #        return False
-        #
-        ## All pieces picked up and dropped off
-        #return True
 
     def _getDefaultResetState(self):
         armsGridPos = [[0,0], [6,4]]  # init 2D grid pos
@@ -444,74 +369,75 @@ class env_pickplace:
         else:
             self.armsGridPos, self.armsStatus, self.piecesMap = self._ext2intState(state)
 
-        self.piecesGridPos = [ cfg['start']  for cfg in self.piecesGridCfg ]
+        self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
 
     # Move robot part to Robot class
     def render(self):
         ''' Show environment '''
         #TODO: render (_plot) is both robot and environment
         # Update robot configuration
-        pos = [self._logic2ang(i, grid_pos) for i,grid_pos in enumerate(self.armsGridPos)]
-        self.robot.setAngles(pos)
+        # Move this render action to Robot
+        #pos = [self._logic2ang(i, grid_pos) for i,grid_pos in enumerate(self.armsGridPos)]
+        #self.robot.setAngles(pos)
 
         # Plot robot
         self._plot()
 
-    def step(self, action):
-        ''' Take an action. Make partial processing. Use reward data from 
-            self.MDP to avoid the heavy processing part. This code is a reduced
-            version of '_step()' function.
+    #def step(self, action):
+    #    ''' Take an action. Make partial processing. Use reward data from 
+    #        self.MDP to avoid the heavy processing part. This code is a reduced
+    #        version of '_step()' function.
 
-            The point is to generate and store a MDP containing only reward, 
-            done and invalid data (all in the same byte) to reduce memory
-            footprint. Then, next_state data is computed on the fly in each 
-            function call.
-        '''
-        done   = False
-        info   = ''
+    #        The point is to generate and store a MDP containing only reward, 
+    #        done and invalid data (all in the same byte) to reduce memory
+    #        footprint. Then, next_state data is computed on the fly in each 
+    #        function call.
+    #    '''
+    #    done   = False
+    #    info   = ''
 
-        state_idx = {}
-        for i, item in enumerate(self.MDP[2]):
-            state_idx[item] = i
+    #    state_idx = {}
+    #    for i, item in enumerate(self.MDP[2]):
+    #        state_idx[item] = i
 
-        state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
-        reward = self.MDP[1][state_idx[state]][action]
+    #    state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+    #    reward = self.MDP[1][state_idx[state]][action]
 
-        # Goal completed. Do nothing (reward is 0)
-        #
-        if self._isGoalMet():
-            reward = 0
-            done   = True
+    #    # Goal completed. Do nothing (reward is 0)
+    #    #
+    #    if self._isGoalMet():
+    #        reward = 0
+    #        done   = True
 
-        # Invalid next_state
-        elif reward <= -5: # TODO: better to define this as a macro
-            pass
+    #    # Invalid next_state
+    #    elif reward <= -5: # TODO: better to define this as a macro
+    #        pass
 
-        # Valid next_state
-        else:
-            offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
-            joint_a = self._ext2intAction(action)
+    #    # Valid next_state
+    #    else:
+    #        offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
+    #        joint_a = self._ext2intAction(action)
 
-            for i,(a, pos) in enumerate(zip(joint_a, self.armsGridPos)):
-                # move right/left/down/up
-                if a < 4: 
-                    pos = list(pos + offset_a[a])
-                    self.armsGridPos[i] = pos
-                    piece_idx = self.armsStatus[i]
-                    if piece_idx > 0:
-                        self.piecesGridPos[piece_idx-1] = pos
-                # pick up
-                elif a == 4:
-                    _, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
-                    self.armsStatus[i]  = piece_idx + 1
-                    self.piecesMap     &= ~(1<<piece_idx)
-                # drop off
-                elif a == 5:
-                    self.armsStatus[i]  = 0
+    #        for i,(a, pos) in enumerate(zip(joint_a, self.armsGridPos)):
+    #            # move right/left/down/up
+    #            if a < 4: 
+    #                pos = list(pos + offset_a[a])
+    #                self.armsGridPos[i] = pos
+    #                piece_idx = self.armsStatus[i]
+    #                if piece_idx > 0:
+    #                    self.piecesCurrPos[piece_idx-1] = pos
+    #            # pick up
+    #            elif a == 4:
+    #                _, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
+    #                self.armsStatus[i]  = piece_idx + 1
+    #                self.piecesMap     &= ~(1<<piece_idx)
+    #            # drop off
+    #            elif a == 5:
+    #                self.armsStatus[i]  = 0
 
-            state = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+    #        state = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
 
-        return state, reward, done, info
+    #    return state, reward, done, info
 
     def _isStateValid(self, state):
         # Before processing an action over the current state, let's check if the 
@@ -526,7 +452,7 @@ class env_pickplace:
         #
         self.reset(state)
 
-        valid_state = self.robot.checkReachability(self.armsGridPos)
+        valid_state = self.robot.checkValidLocation(self.armsGridPos)
 
         if valid_state:
             valid_state = not self.robot.checkCollision(self.armsGridPos)
@@ -535,20 +461,13 @@ class env_pickplace:
             valid_state = self._isPiecesStatusValid(self.armsGridPos, self.armsStatus, self.piecesMap)
 
         return valid_state
-        #if valid_state == False:
-        #    # Abort wih error
-        #    state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap) # irrelevant
-        #    reward = 0     # irrelevant
-        #    done   = False # irrelevant
-        #    info   = 'invalid'
-        #    return state, reward, done, info
 
     def _step(self, action, mode=0):
-        ''' Being on state 's', takes action 'a' and returns the next state 's'
-            and reward 'r'. 
+        ''' Given a state "s" and an action "a", returns a state "s'" and a reward "r".
 
-            If the action 'a' is invalid (grid boundaries exceeded, robot collision,
-            ...) on state 's', state won't change and reward will be highly negative.
+            If the action "a" is wrong (grid boundaries exceeded, robot collision,
+            ...) on state "s", the state won't change and the reward will be highly
+            negative.
 
             Note: 'mode' is an internal argument to trick the pick&place actions.
                   When building the MDP to be agnostic of the pieces configuration,
@@ -558,8 +477,6 @@ class env_pickplace:
                   configuration is known.
         '''
 
-        # Current state is valid. Let's process the action!
-        
         # First, check if we've already met the goal
         #
         if self._isGoalMet():
@@ -572,60 +489,66 @@ class env_pickplace:
             return state, reward, done, info
 
         # Now, let's see what happens when applying the agent action. Wrong 
-        # actions will be punished, while good ones will be # reinforced
-        # (reward reponse field)
+        # actions will be punished, while the good ones will be reinforced
+        # (reward reponse)
         #
         # Wrong action reasons:
         # - Robot exceeds grid boundaries
         # - Incoherent pick up or drop off action (nothing to pick up or drop off)
         # - Robot arms collision
         #
-        next_arms_status = self.armsStatus[:] # copy 1D list
-        next_pieces_map  = self.piecesMap
-        next_pieces_grid_pos = [x[:] for x in self.piecesGridPos] # copy 2D list
-        move_both_arms   = True 
-        info        = ''
-        done        = False
-        valid_state = True
+        valid_state     = True
         pick_place_mark = False
+        info            = ''
+        done            = False
+
+        next_arms_status     = self.armsStatus[:]                 # copy 1D list
+        next_pieces_map      = self.piecesMap
+        next_arms_grid_pos   = []
+        next_pieces_grid_pos = [x[:] for x in self.piecesCurrPos] # copy 2D list
+        move_both_arms       = True 
 
         offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
 
         joint_a = self._ext2intAction(action)
-        next_pos = []
         for i,(a, pos) in enumerate(zip(joint_a, self.armsGridPos)):
-            # move right/left/down/up
-            if a < 4: 
+            # move (right/left/down/up)
+            if a < 4:
                 pos = list(pos + offset_a[a])
                 if not self._isArmsGridPosValid(pos):
                     valid_state = False # Grid boundaries exceeded
                     break
+
                 # update piece pos
                 piece_idx = self.armsStatus[i]
                 if piece_idx > 0:
                     next_pieces_grid_pos[piece_idx-1] = pos
 
-            # Do NOT analyze pick and place actions (in any state). Consider them as invalid, 
-            # Specifically, if any check fails, do not make anything special (reward = -20),
-            # but if every check is passed, then return a reward=-30. This will help to 
-            # identify which state/pair actions can be corrected.
-            #
-            # The idea behind this is to precompute as much as possible the MDP table, 
-            # and then, when pieces configuration is known (real time), complete it
-            # (updating those 'marked' state/pair actions corresponding to the pieces
-            # locations).
-            # This trick will speed up the algorithm in real time (most of the MDP table
-            # will be precocomputed offline)
-            #
             # pick or place
+            #
+            # 'mode' var is used for an internal trick.
+            # - Set to 1 one when generating a generic MDP (valid for any 
+            #   configuration of the pieces). The idea is to generate most of the
+            #   tabular MDP offline, and then update it when a specific configuration
+            #   of the pieces is known (online step)
+            # - Set to 0 (default value) for normal operation.
             #
             elif a == 4 or a == 5:
                 if mode == 1:
-                    # mark it, but do not abort the remaining checks
+                    # Configuration of the pieces is unknown at this point, so
+                    # no decision can be taken yet.
+                    # If the state/action pair does not result in an big negative
+                    # reward due to other checks, the reward will be set to a
+                    # predefined value (mark) indicating that this state/action
+                    # pair might need update.
+                    # Once the specific configuration of pieces is known, the 
+                    # reward of most of the state/action pairs will be set to 
+                    # (-20, big punishment), and that for a few ones (matching
+                    # the pieces location) will be recomputed to update the MDP.
                     pick_place_mark = True
                 else:
                     # pick up
-                    elif a == 4:
+                    if a == 4:
                         valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
                         if valid_state:
                             next_arms_status[i]  = piece_idx + 1
@@ -643,16 +566,16 @@ class env_pickplace:
             else:
                 move_both_arms  = False # One arm stays still
 
-            next_pos.append(pos)
+            next_arms_grid_pos.append(pos)
 
         if valid_state:
-            valid_state = self.robot.checkReachability(next_pos)
+            valid_state = self.robot.checkValidLocation(next_arms_grid_pos)
 
         if valid_state:
-            valid_state = not self.robot.checkCollision(next_pos)
+            valid_state = not self.robot.checkCollision(next_arms_grid_pos)
 
         if valid_state:
-            valid_state = self._isPiecesStatusValid(next_pos, next_arms_status, next_pieces_map)
+            valid_state = self._isPiecesStatusValid(next_arms_grid_pos, next_arms_status, next_pieces_map)
 
         if valid_state:
             if pick_place_mark:
@@ -661,8 +584,8 @@ class env_pickplace:
             else:
                 self.armsStatus    = next_arms_status
                 self.piecesMap     = next_pieces_map
-                self.armsGridPos   = next_pos
-                self.piecesGridPos = next_pieces_grid_pos
+                self.armsGridPos   = next_arms_grid_pos
+                self.piecesCurrPos = next_pieces_grid_pos
 
                 if self._isGoalMet():
                     reward = 100
@@ -702,18 +625,21 @@ class env_pickplace:
                 self.fig = plt.gcf()
             else:     
                 self.ax = plt.axes()
+                self.ax.set_aspect('equal')
                 self.fig = plt.gcf()
 
-        plt.axis([-3,3,-3,3]) # TODO: no poner a fuego
+        #plt.axis([-3,3,-3,3]) # TODO: no poner a fuego (usar area del grid como referencia)
+        plt.axis([-600,600,50,750]) # TODO: no poner a fuego (usar area del grid como referencia)
 
         # Robot
-        self.robot.plot(self.armsGridPos, self.ax, plt3d)
+        phyPos = [self._logic2phy(pos) for pos in self.armsGridPos]
+        self.robot.plot(phyPos, self.ax, plt3d)
 
         # Pieces
         partsColor ='bgrcmykbgrcmyk'
         now, end = [[],[],[],[]], [[],[],[],[]] # x,y,z,color
-        for i, (grid_pos, part) in enumerate(zip(self.piecesGridPos, self.piecesCfg)):
-            pos = self._logic2phy(grid_pos)[:]
+        for i, (grid_pos, part) in enumerate(zip(self.piecesCurrPos, self.piecesCfg)):
+            pos = list(self._logic2phy(grid_pos)[:])
             pos.append(partsColor[i])
             for j,data in enumerate(pos):
                 now[j].append(data)
@@ -732,8 +658,7 @@ class env_pickplace:
 
         # Grid
         x,y,z = [],[],[]
-        for vertices in self.robot.grid:
-            xi,yi,zi =  np.array(vertices).T
+        for xi,yi,zi in self.robot.location:
             x.append(xi)
             y.append(yi)
             z.append(zi)
@@ -768,21 +693,36 @@ class env_pickplace:
 if __name__ == "__main__":
 
     # Robot
-    robot = Robot_2A2L()
+    #robot = Robot_2A2L()
+    robot = Robot_YuMi()
 
     # Pieces configuration
-    piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-                  'end'   : [ 0.5, -1.5, 0],
-                 },
-                 {'start' : [-0.3, -0.8, 0],  # Piece 2
-                  'end'   : [ 1,   -1,   0],
-                 },
-                 {'start' : [-0.3, -1,   0],  # Piece 3
-                  'end'   : [ 0.3, -1,   0],
-                 },
-                 {'start' : [-0.6, -1.3, 0],  # Piece 4
-                  'end'   : [ 0.6, -0.8, 0],
+    # ... for YuMi
+    piecesCfg = [{'start' : [-350, 450, 0],  # Piece 1
+                  'end'   : [ 350, 400, 0],
+                 },                     
+                 {'start' : [-350, 300, 0],  # Piece 2
+                  'end'   : [ 150, 300, 0],
+                 },                     
+                 {'start' : [-150, 450, 0],  # Piece 3
+                  'end'   : [ 250, 250, 0],
+                 },                     
+                 {'start' : [-50,  350, 0],  # Piece 4
+                  'end'   : [ 250, 500, 0],
                  }]
+    # ... for 2A2L
+    #piecesCfg = [{'start' : [-0.5, -0.5, 0],  # Piece 1
+    #              'end'   : [ 0.5, -1.5, 0],
+    #             },
+    #             {'start' : [-0.3, -0.8, 0],  # Piece 2
+    #              'end'   : [ 1,   -1,   0],
+    #             },
+    #             {'start' : [-0.3, -1,   0],  # Piece 3
+    #              'end'   : [ 0.3, -1,   0],
+    #             },
+    #             {'start' : [-0.6, -1.3, 0],  # Piece 4
+    #              'end'   : [ 0.6, -0.8, 0],
+    #             }]
                  #},
                  #{'start' : [-0.7, -0.7, 0],  # Piece 5
                  # 'end'   : [ 1.2, -0.4, 0],
@@ -856,15 +796,16 @@ if __name__ == "__main__":
     #cnt = sum([1 for data in (env.MDP[2]==0) if data[0]==True])
     #print("Total valid states (from env.MDP): {} ({}%)".format(cnt, 100*cnt/len(env.MDP[2])))
 
-    if True:
+    if False:
         pass
     else:
-        for i in range(2000):
-            if i%20001 == 0:
+        for i in range(1000):
+            if i%1 == 0:
                 env.render()
             action = env.action_space.sample()
-            _,_,done,info = env.step(action) # take a random action
+            observation,reward,done,info = env._step(action) # take a random action
             #print(i, action, info)
+            print(env._ext2intState(observation), reward, done, info, action)
             if done:
                 print('Done! ', i)
                 break
