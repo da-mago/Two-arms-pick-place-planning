@@ -166,8 +166,8 @@ class env_pickplace:
             self.piecesLocation['end'  ].append(xy_j)
 
             ## update robot grid
-            print(xy_i, self._xy2idx(xy_i), cfg['start'])
-            print(xy_j, self._xy2idx(xy_j), cfg['end'])
+            #print(xy_i, self._xy2idx(xy_i), cfg['start'])
+            #print(xy_j, self._xy2idx(xy_j), cfg['end'])
             self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
             self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
 
@@ -257,6 +257,10 @@ class env_pickplace:
 
     def _xy2idx(self, xy):
         ''' xy grid pos to index '''
+        # (N-1)*M, (N-1)*M+1, (N-1)*M+2, ... N*M-1    y
+        #                                             ^
+        #       M,       M+1,       M+2, ... 2M-1     |
+        #       0,         1,         2, ...  M-1     o--> x
         x,y = xy
         return x + y*self.M
 

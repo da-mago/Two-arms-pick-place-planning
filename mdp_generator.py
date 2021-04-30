@@ -8,8 +8,6 @@
 #
 
 from env_pickplace import env_pickplace
-#from robot_2A2L import Robot_2A2L
-from robot_YuMi import Robot_YuMi
 import numpy as np
 import pickle
 
@@ -83,10 +81,11 @@ class mdp_generator(env_pickplace):
         mdp_l = [[] for _ in range(piecesMap_len * status_len)]
         for i, state in enumerate(mdp_v):
             armsGridPos, armsStatus, piecesMap = self._ext2intState(state)
-            idx = prioritized_status.index(armsStatus) + status_len*prioritized_piecesMap[piecesMap]
+            #idx = prioritized_status.index(armsStatus) + status_len*prioritized_piecesMap[piecesMap]
+            idx = prioritized_status.index(armsStatus) + status_len*prioritized_piecesMap.index(piecesMap)
             mdp_l[idx].append(i)
 
-        self.MDP = [mdp_s, mdp_r, mdp_v, mdp_i, mdp_l] # next_state, reward, state redution mapping, inverse state reduction mapping, layered partitions
+        self.MDP = [mdp_s, mdp_r, mdp_v, mdp_i, mdp_l] # next_state, reward, state reduction mapping, inverse state reduction mapping, layered partitions
 
     def update(self):
         ''' Update MDP for a specific configuration of pieces '''
@@ -125,7 +124,6 @@ class mdp_generator(env_pickplace):
     
                                 # Process only valid states
                                 if state in states_idx:
-                                    
                                     idx = states_idx[state]
                                     # Avoid checks (it was done in phase 1, -30 means all checks were passed)
                                     for action in range(7):
@@ -175,37 +173,45 @@ class mdp_generator(env_pickplace):
 
 if __name__ == "__main__":
 
-    # Robot
-    #robot = Robot_2A2L()
-    robot = Robot_YuMi()
+    # YuMi robot
+    if True:
+        from robot_YuMi import Robot_YuMi
 
-    # Pieces configuration
-    # ... for YuMi
-    pieces = [{'start' : [-350, 450, 0],  # Piece 1
-               'end'   : [ 350, 400, 0],
-              },                     
-              {'start' : [-350, 300, 0],  # Piece 2
-               'end'   : [ 150, 300, 0],
-              },                     
-              {'start' : [-150, 450, 0],  # Piece 3
-               'end'   : [ 250, 250, 0],
-              },                     
-              {'start' : [-50,  350, 0],  # Piece 4
-               'end'   : [ 250, 500, 0],
-              }]
-    # ... for 2A2L
-    #pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
-    #           'end'   : [ 0.5, -1.5, 0],
-    #          },
-    #          {'start' : [-0.3, -0.8, 0],  # Piece 2
-    #           'end'   : [ 1,   -1,   0],
-    #          },
-    #          {'start' : [-0.3, -1,   0],  # Piece 3
-    #           'end'   : [ 0.3, -1,   0],
-    #          },
-    #          {'start' : [-0.6, -1.3, 0],  # Piece 4
-    #           'end'   : [ 0.6, -0.8, 0],
-    #          }]
+        robot = Robot_YuMi()
+
+        # Pieces configuration
+        # ... for YuMi
+        pieces = [{'start' : [-350, 450, 0],  # Piece 1
+                   'end'   : [ 350, 400, 0],
+                  },                     
+                  {'start' : [-350, 300, 0],  # Piece 2
+                   'end'   : [ 150, 300, 0],
+                  },                     
+                  {'start' : [-150, 450, 0],  # Piece 3
+                   'end'   : [ 250, 250, 0],
+                  },                     
+                  {'start' : [-50,  350, 0],  # Piece 4
+                   'end'   : [ 250, 500, 0],
+                  }]
+
+    # Simulated 2A2L
+    #else:
+    #    from robot_2A2L import Robot_2A2L
+    #    
+    #    robot = Robot_2A2L()
+    #    
+    #    pieces = [{'start' : [-0.5, -0.5, 0],  # Piece 1
+    #               'end'   : [ 0.5, -1.5, 0],
+    #              },
+    #              {'start' : [-0.3, -0.8, 0],  # Piece 2
+    #               'end'   : [ 1,   -1,   0],
+    #              },
+    #              {'start' : [-0.3, -1,   0],  # Piece 3
+    #               'end'   : [ 0.3, -1,   0],
+    #              },
+    #              {'start' : [-0.6, -1.3, 0],  # Piece 4
+    #               'end'   : [ 0.6, -0.8, 0],
+    #              }]
 
 
     mdp_test = mdp_generator(robot, pieces)
@@ -215,5 +221,5 @@ if __name__ == "__main__":
         mdp_test.save('MDP.bin')
 
     #mdp_test.update(pieces)
-    #mdp_test.update()
+    mdp_test.update()
 

@@ -12,11 +12,15 @@ class Robot:
         self.robot = [ tinyik.Actuator(arm_cfg['model']) for arm_cfg in cfg ]
 
         x, y    =  work_area['rect'][0],  work_area['rect'][1]  # top-left 2D grid corner
+        M = work_area['size'][0]
+        N = work_area['size'][1]
         x_delta = (work_area['rect'][2] - work_area['rect'][0])/(N-1)
         y_delta = (work_area['rect'][1] - work_area['rect'][3])/(M-1)
         self.grid = [ [x + x_delta*j, y + y_delta*k, 0] for j in range(N) for k in range(M)]
 
         self.reset()
+        self.M = M
+        self.N = N
 
     def reset(self):
         ''' Set initial robot pose '''
