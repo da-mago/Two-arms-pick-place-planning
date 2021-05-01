@@ -303,6 +303,27 @@ class mdp_hrl_generator(env_hrl):
                                 self.MDP[1][idx][a1*7+a2] = reward
 
 
+def getReturn(mdp, policy, state):
+    ''' Given the MDP and the computed policy, get the Return (cumulative reward)
+        until any of the arms complete its task (pick and place its piece) '''
+
+    R = 0
+    #while True:
+    for i in range(20):
+
+        action  = policy[state]
+        joint_a = mdp._ext2intAction(action)
+        #R      += robot_mdp.MDP[1][state][action]
+        R      += -3 if 6 not in joint_a else -2
+        state   = mdp.MDP[0][state][action]
+
+        print(robot_mdp._ext2intAction(action), robot_mdp._ext2intState(robot_mdp.MDP[2][state]), R)
+        # Assume that computed policy only selects drop action (5) in the appropriate pos
+        if 5 in joint_a:
+            break
+
+    return R, state
+
 
 def showSolution(policy, initial_pos, GIF_filename=None):
     ''' Show pick & place solution '''
@@ -322,6 +343,7 @@ def showSolution(policy, initial_pos, GIF_filename=None):
         reward            = robot_mdp.MDP[1][mapped_state][action]
         next_state        = robot_mdp.MDP[2][next_mapped_state]
         robot_mdp.reset(next_state)
+
 
 
 if __name__ == "__main__":
@@ -348,27 +370,30 @@ if __name__ == "__main__":
 
     robot_mdp = mdp_hrl_generator(robot, pieces)
 
-    if not robot_mdp.load('MDP.bin'):
-        robot_mdp.generate()
-        robot_mdp.save('MDP.bin')
+    for i in range(12):
 
-    #robot_mdp.update(pieces)
-    for i in range(1):
+        init_pos   = [[5,0],[6,1]]
+        print('Init pos ', init_pos)
+        print('Pieces Location ', robot_mdp.piecesLocation)
+
+        # Get MDP template
+        if not robot_mdp.load('MDP.bin'):
+            robot_mdp.generate()
+            robot_mdp.save('MDP.bin')
+
+        # Update it with pieces info
+        robot_mdp.setPieces(pieces)
         robot_mdp.update()
 
-    #                      Next states       Rewards
-    for i in range(1):
+        # Solve it
         solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
         policy = solver.solve()
 
-    # Initial pos
-    #init_pos   = [[1,3],[8,4]]
-    init_pos   = [[5,0],[6,1]]
+        #state = robot_mdp._int2extState(init_pos, [0,1])
+        #state = robot_mdp.MDP[3][state]
+        state = np.random.randint(len(robot_mdp.MDP[0]))
 
-    print('Init pos ', init_pos)
-    print('Pieces Location ', robot_mdp.piecesLocation)
+        print(getReturn(robot_mdp, policy, state))
 
     # Show solution
-    showSolution(policy, init_pos)
-
-    
+    #showSolution(policy, init_pos)

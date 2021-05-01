@@ -81,6 +81,16 @@ class env_hrl:
     #
     #############################################################
 
+    def setPieces(self, piecesCfg):
+        self.piecesLocation = { 'start':[], 'end':[] }
+        for cfg in self.piecesCfg:
+            # find corresponding grid location for each piece
+            xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
+            xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
+
+            self.piecesLocation['start'].append(xy_i)
+            self.piecesLocation['end'  ].append(xy_j)
+
     def _int2extState(self, armsPos, armsStatus):
         ''' convert internal state representation to a single scalar '''
         N,M = self.N, self.M
