@@ -103,6 +103,8 @@
 #
 # Note: it seems a much simpler solution
 
+import sys
+
 from env_hrl import env_hrl
 from mdp_solver import mdp_solver
 import numpy as np
@@ -303,27 +305,6 @@ class mdp_hrl_generator(env_hrl):
                                 self.MDP[1][idx][a1*7+a2] = reward
 
 
-def getReturn(mdp, policy, state):
-    ''' Given the MDP and the computed policy, get the Return (cumulative reward)
-        until any of the arms complete its task (pick and place its piece) '''
-
-    R = 0
-    #while True:
-    for i in range(20):
-
-        action  = policy[state]
-        joint_a = mdp._ext2intAction(action)
-        #R      += robot_mdp.MDP[1][state][action]
-        R      += -3 if 6 not in joint_a else -2
-        state   = mdp.MDP[0][state][action]
-
-        print(robot_mdp._ext2intAction(action), robot_mdp._ext2intState(robot_mdp.MDP[2][state]), R)
-        # Assume that computed policy only selects drop action (5) in the appropriate pos
-        if 5 in joint_a:
-            break
-
-    return R, state
-
 
 def showSolution(policy, initial_pos, GIF_filename=None):
     ''' Show pick & place solution '''
@@ -345,6 +326,107 @@ def showSolution(policy, initial_pos, GIF_filename=None):
         robot_mdp.reset(next_state)
 
 
+def getReturn(mdp, policy, state):
+    ''' Given the MDP and the computed policy, get the Return (cumulative reward)
+        until any of the arms complete its task (pick and place its piece) '''
+
+    R = 0
+    pieces_done = [False, False]
+
+    while True:
+        action  = policy[state]
+        joint_a = mdp._ext2intAction(action)
+        #R      += robot_mdp.MDP[1][state][action]
+        R      += -3 if 6 not in joint_a else -2
+        state   = mdp.MDP[0][state][action]
+
+        #print(robot_mdp._ext2intAction(action), robot_mdp._ext2intState(robot_mdp.MDP[2][state]), R)
+        # Assume that computed policy only selects drop action (5) in the appropriate pos
+        if 5 in joint_a:
+            pieces_done = [a==5 for a in joint_a]
+            break
+
+    return R, state, pieces_done
+
+
+def getMDPPolicy(p1, p2):
+    global robot_mdp
+    global pieces
+
+    # Choose pieces
+    # TODO: take care of px=0 (no piece)
+    two_pieces = [pieces[p1-1], pieces[p2-1]]
+
+    # Get MDP template
+    if not robot_mdp.load('MDP.bin'):
+        robot_mdp.generate()
+        robot_mdp.save('MDP.bin')
+
+    # Update it with pieces info
+    robot_mdp.setPieces(two_pieces)
+    robot_mdp.update()
+
+    # Solve it
+    solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
+    policy = solver.solve()
+
+    return robot_mdp, policy 
+
+
+def generateL0MDP(prev, p1, p2, state, piecesList):
+
+    global this
+    global MDP
+
+    if p1 == 0 and p2 == 0:
+       print("WTF!!!")
+       sys.exit()
+
+    this += 1
+
+    # Get the appropriate lower layer MDP
+    mdp, policy = getMDPPolicy(p1, p2)
+
+    # Run it
+    R, state, pieces_done = getReturn(mdp, policy, state)
+
+    print(f"Pieces {p1}, {p2}, List {piecesList}, Done {pieces_done}")
+
+    # Update piecesList
+    if p1 > 0:
+        piecesList[p1-1] = 0
+    if p2 > 0:
+        piecesList[p2-1] = 0
+
+    # Potential next selections
+    pMap = [[p1], [p2]]
+    for i, (p, p_done) in enumerate(zip([p1,p2], pieces_done)):
+        if p_done:
+            # ... remaining-pieces list (0 if no pieces)
+            pMap[i] = [t for t in piecesList if t != 0]
+            if p == []:
+                pMap[i] = [0]
+
+    if pMap[0] == pMap[1] and len(pMap[0]) == 1:
+        if pMap[0][0] == 0:
+            # All pieces done
+            return
+        else:
+            # Remaining the same piece for both robots
+            pMap[0].append(0)
+            pMap[1].append(0)
+
+    #print(p1, p2, piecesList, pMap, pieces_done)
+    # Update high level MDP (next_state and reward)
+#    MDP[0][prev][...] = this
+#    MDP[1][prev][...] = R
+
+    # Next state
+    for p1 in pMap[0]:
+        for p2 in pMap[1]:
+            if p1!=p2:
+                generateL0MDP(this, p1, p2, state, piecesList[:])
+
 
 if __name__ == "__main__":
 
@@ -358,6 +440,19 @@ if __name__ == "__main__":
     pieces = [{'start' : [-350, 450, 0],  # Piece 1
                'end'   : [ 350, 400, 0],
               },                     
+              {'start' : [-350, 300, 0],  # Piece 2
+               'end'   : [ 150, 300, 0],
+              },                     
+              {'start' : [-150, 450, 0],  # Piece 3
+               'end'   : [ 250, 250, 0],
+              },                     
+              {'start' : [-50,  250, 0],  # Piece 4
+               'end'   : [ 250, 500, 0],
+              }]
+
+    pieces_fake = [{'start' : [-350, 450, 0],  # Piece 1
+               'end'   : [ 350, 400, 0],
+              },                     
 #              {'start' : [-350, 300, 0],  # Piece 2
 #               'end'   : [ 150, 300, 0],
 #              },                     
@@ -368,7 +463,19 @@ if __name__ == "__main__":
                'end'   : [ 250, 500, 0],
               }]
 
-    robot_mdp = mdp_hrl_generator(robot, pieces)
+    robot_mdp = mdp_hrl_generator(robot, pieces_fake)
+
+
+    this = 0
+    state = 0
+    piecesMap = [1, 2, 3, 4]
+    for p1 in piecesMap:
+        for p2 in piecesMap:
+            if p1 != p2:
+                print('New')
+                generateL0MDP(this, p1, p2, state, piecesMap[:])
+    print(this)
+    sys.exit()
 
     for i in range(12):
 
@@ -381,8 +488,8 @@ if __name__ == "__main__":
             robot_mdp.generate()
             robot_mdp.save('MDP.bin')
 
-        # Update it with pieces info
-        robot_mdp.setPieces(pieces)
+        # Update it with pieces_fake info
+        robot_mdp.setPieces(pieces_fake)
         robot_mdp.update()
 
         # Solve it
