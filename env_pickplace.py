@@ -317,10 +317,10 @@ class env_pickplace:
                     break
 
         # - When the job is done, at least one arm should be at a target piece position
-        if res == True:
-            if (piecesMap == 0) and np.sum(armsStatus) == 0:
-                tmp = [ p1==p2 for p1 in armsGridPos for p2 in self.piecesLocation['end'] ]
-                res = True in tmp
+#        if res == True:
+#            if (piecesMap == 0) and np.sum(armsStatus) == 0:
+#                tmp = [ p1==p2 for p1 in armsGridPos for p2 in self.piecesLocation['end'] ]
+#                res = True in tmp
 
 
         # and store it
@@ -592,15 +592,15 @@ class env_pickplace:
                 self.piecesCurrPos = next_pieces_grid_pos
 
                 if self._isGoalMet():
-                    reward = 100
+                    reward = 10000
                     done   = True
                 else:
                     # Different reward when moving one or both arms helps to:
                     # - prefer moving both arms at once (-2) than separately (-3.8)
                     # - prefer moving only one arm when the other already got 
                     #   its goal (-1.9 better than -2)
-                    if move_both_arms == True: reward = -3
-                    else:                      reward = -2
+                    if move_both_arms == False: reward = -9 # 1 arm
+                    else:                       reward = -10 # 2 arms
         else:
             # The same reward (punishment) for any unwanted action
             reward = -20

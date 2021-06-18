@@ -51,7 +51,6 @@ class mdp_generator(env_pickplace):
         # Filter out invalid states
         valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
         valid_nS = len(valid_states)
-        print(valid_nS)
 
         states_idx = {}
         for i, item in enumerate(valid_states):
@@ -60,7 +59,7 @@ class mdp_generator(env_pickplace):
         print("Computing MDP ...")
         # Note: MDP is very large. Use numpy
         mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
-        mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int8)
+        mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int16)
         mdp_v = np.array(valid_states)
         mdp_i = {x:i for i,x in enumerate(mdp_v)}
         for i,s in enumerate(valid_states):
@@ -164,9 +163,9 @@ class mdp_generator(env_pickplace):
                                             if arm == 0: state =  self._int2extState([pos,pos2], [next_status,next_status_2], next_bitmap)
                                             else:        state =  self._int2extState([pos2,pos], [next_status_2,next_status], next_bitmap)
     
-                                            if next_bitmap + np.sum([next_status, next_status_2]) == 0: reward = 100
-                                            elif action == 6:                                           reward = -2
-                                            else:                                                       reward = -3
+                                            if next_bitmap + np.sum([next_status, next_status_2]) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
+                                            elif action == 6:                                           reward = -1 # 1 arm
+                                            else:                                                       reward = -1 # 2 arms
     
                                             self.MDP[0][idx][a1*7+a2] = states_idx[state]
                                             self.MDP[1][idx][a1*7+a2] = reward

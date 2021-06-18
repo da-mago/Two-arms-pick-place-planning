@@ -18,7 +18,7 @@ class Robot_YuMi():
         self.min_dist = min_dist # Distance considered collision (cm)
         self.z = z               # Default z value for robot EEs
 
-        self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v3.csv')    
+        self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
 
 
     def _loadCSV(self, distanceFilename, configFilename):
@@ -29,7 +29,7 @@ class Robot_YuMi():
         # 1. Robot configuration
         with open(configFilename) as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
-            csv_data = [row for i,row in enumerate(csv_reader) if i>=2]
+            csv_data = [row for i,row in enumerate(csv_reader) if i>=3]
 
         grid_size = len(csv_data)
         angles_size = 7
@@ -55,11 +55,11 @@ class Robot_YuMi():
                 idx += 1
 
                 location[i] = [-int(row[1]), int(row[0]), self.z]
-                #reachable[0, i] = 1 if row[10]=='Si' else 0         # valid EE location (left)
-                #reachable[1, i] = 1 if row[2 ]=='Si' else 0         # right
-                reachable[0, i] = int(row[10])                      # valid EE location (left)
+                #reachable[0, i] = 1 if row[10]=='Si' else 0        # valid EE location (left)
+                #reachable[1, i] = 1 if row[2 ]=='Si' else 0        # right
+                reachable[0, i] = int(row[2+10])                    # valid EE location (left)
                 reachable[1, i] = int(row[2 ])                      # right
-                config[0, i] = [float(t) for t in row[11:18]]       # 7 angles (left)
+                config[0, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
                 config[1, i] = [float(t) for t in row[3:10]]        # right
 
         # 2. Robot collision (distance between arms)

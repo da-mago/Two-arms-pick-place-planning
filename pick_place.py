@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import time    # sleep
 import imageio # mimsave
@@ -6,22 +7,35 @@ from mdp_solver import mdp_solver
 
 def showSolution(policy, initial_pos, GIF_filename=None):
     ''' Show pick & place solution '''
+    global num_steps
+
     init_state = robot_mdp._int2extState(initial_pos, [0,0], 15)
     next_state = init_state
     robot_mdp.reset(next_state)
     images = []
     i = 0
     done = False
+    #print('SOLUTION')
     while done == False:
+
+        num_steps += 1
         # Show pick&place solution
-        robot_mdp.render()
+        #robot_mdp.render()
         time.sleep(0.1)
         action = policy[ robot_mdp.MDP[3][next_state] ]
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Show plan actions
-        print(i, robot_mdp._ext2intAction(action))
-        print(i, robot_mdp._ext2intState(next_state))
+        #print(i, robot_mdp._ext2intAction(action))
+        #print(i, robot_mdp._ext2intState(next_state))
+        pos,status,_ = robot_mdp._ext2intState(next_state)
+        joint_a = robot_mdp._ext2intAction(action)
+        #print(joint_a, pos, ',', status, i)
+        for arm_idx in range(1,-1,-1):
+            idx = robot_mdp._xy2idx(pos[arm_idx])
+            x,y,_       = robot_mdp.robot.location[idx]
+            #arm_config = robot.config[arm_idx, idx]
+            #print("{}, {}, 250".format(y, -x))
         i += 1
 
         # Create GIF
@@ -30,9 +44,11 @@ def showSolution(policy, initial_pos, GIF_filename=None):
             image = image.reshape(robot_mdp.fig.canvas.get_width_height()[::-1] + (3,)) # Example: (640,480,3)
             images.append(image)
             if done == True:
-                for i in range(6):
+                for _ in range(6):
                     images.append(images[-1]) # Just to freeze the image for a while
                 imageio.mimsave(GIF_filename, images, duration=0.5)
+
+    #print(f"Solution in {i}")
                 
 
 def generatePythonPlan(policy, initial_pos, pieces):
@@ -130,31 +146,43 @@ if __name__ == "__main__":
         robot = Robot_YuMi()
 
         ## Pieces configuration
-        pieces = [{'start' : [-350, 450, 0],  # Piece 1
-                   'end'   : [ 250, 250, 0],
-                  },                     
-                  {'start' : [-350, 300, 0],  # Piece 2
-                   'end'   : [ 150, 300, 0],
-                  },                     
-                  {'start' : [-50,  350, 0],  # Piece 3
-                   'end'   : [ 350, 400, 0],
-                  },                     
-                  {'start' : [-150, 450, 0],  # Piece 4
-                   'end'   : [ 250, 500, 0],
-                  }]
-        # Pieces configuration
-        #pieces = [{'start' : [-250, 500, 0],  # Piece 1
-        #           'end'   : [ 250, 200, 0],
+        #pieces = [{'start' : [-350, 450, 0],  # Piece 1
+        #           'end'   : [ 250, 250, 0],
         #          },                     
-        #          {'start' : [-350, 200, 0],  # Piece 2
+        #          {'start' : [-350, 300, 0],  # Piece 2
         #           'end'   : [ 150, 300, 0],
         #          },                     
-        #          {'start' : [-50,  200, 0],  # Piece 3
+        #          {'start' : [-50,  350, 0],  # Piece 3
         #           'end'   : [ 350, 400, 0],
         #          },                     
-        #          {'start' : [-150, 400, 0],  # Piece 4
-        #           'end'   : [ 50, 500, 0],
+        #          {'start' : [-150, 450, 0],  # Piece 4
+        #           'end'   : [ 250, 500, 0],
         #          }]
+        # Pieces configuration
+        pieces = [{'start' : [-250, 500, 0],  # Piece 1
+                   'end'   : [ 250, 200, 0],
+                  },                     
+                  {'start' : [-350, 200, 0],  # Piece 2
+                   'end'   : [ 150, 300, 0],
+                  },                     
+                  {'start' : [-50,  200, 0],  # Piece 3
+                   'end'   : [ 350, 400, 0],
+                  },                     
+                  {'start' : [-150, 400, 0],  # Piece 4
+                   'end'   : [ 50, 500, 0],
+                  }]
+        pieces = [{'start' : [-150, 200, 0],  # Piece 1
+                   'end'   : [ 250, 200, 0],
+                  },                     
+                  {'start' : [-250, 200, 0],  # Piece 2
+                   'end'   : [ 150, 300, 0],
+                  },                     
+                  {'start' : [-50,  200, 0],  # Piece 3
+                   'end'   : [ 350, 400, 0],
+                  },                     
+                  {'start' : [-250, 400, 0],  # Piece 4
+                   'end'   : [ 50, 500, 0],
+                  }]
     # Simulated 2A2L
     #else:
     #    from robot_2A2L import Robot_2A2L
@@ -173,27 +201,90 @@ if __name__ == "__main__":
     #              }]
 
 
-    # Solve MDP
-    robot_mdp = mdp_generator(robot, pieces)
+#    # Solve MDP
+#    robot_mdp = mdp_generator(robot, pieces)
+#
+#    if not robot_mdp.load('MDP_RAW.bin'):
+#        robot_mdp.generate()
+#        robot_mdp.save('MDP_RAW.bin')
+#
+#    robot_mdp.update()
+#
+#    #                      Next states       Rewards
+#    solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
+#    policy = solver.solve()
+#
+#    # Initial pos
+#    init_pos   = [[1,2],[3,4]]
+#    #init_pos   = [[1,4], [8,4]]
+#    #init_pos   = [[3,0],[9,1]]
+#    
+#    # Show solution
+#    #showSolution(policy, init_pos, 'robot.gif')
+#    showSolution(policy, init_pos)
 
-    if not robot_mdp.load('MDP.bin'):
-        robot_mdp.generate()
-        robot_mdp.save('MDP.bin')
+    # Test the solution for several pieces configurations and several arms init locations
+    #
+    np.random.seed(5)
+    print("ArmsGridPos;Pieces location;Num steps")
+    piecesTest = [pieces]
+    num_pieces_cfg = 5
+    num_arms_init_cfg = 5
+    for j in range(num_pieces_cfg):
+        # Set random pieces location
+        pieces = [{'start' : [-50 - 100*np.random.randint(5), 200 + 100*np.random.randint(5), 0],  # Piece 1
+                   'end'   : [ 50 + 100*np.random.randint(5), 200 + 100*np.random.randint(5), 0],
+                  } for _ in range(4)] # 4 pieces
 
-    robot_mdp.update()
 
-    #                      Next states       Rewards
-    solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
-    policy = solver.solve()
+#        if j == 0:
+#            for i in range(num_arms_init_cfg):
+#                armsGridPos = [[np.random.randint(5),np.random.randint(5)], [np.random.randint(5,10),np.random.randint(5)]]
+#            continue
 
-    # Initial pos
-    init_pos   = [[1,3],[8,4]]
-    init_pos   = [[3,0],[9,1]]
-    
-    # Show solution
-    showSolution(policy, init_pos, 'robot.gif')
+        # Load MDP template update it with known pieces location
+        # Dirty: like running the script on each iteration
+#        if os.path.isfile('MDP_RAW.bin'):
+#            os.remove('MDP_RAW.bin')
+        #try:
+        #    del robot_mdp
+        #except:
+        #    pass
+        robot_mdp = mdp_generator(robot, pieces)
+        if not robot_mdp.load('MDP_RAW.bin'):
+            robot_mdp.generate()
+            robot_mdp.save('MDP_RAW.bin')
+        robot_mdp.update()
+
+        # Solve MDP
+        solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
+        policy = solver.solve()
+
+        for i in range(num_arms_init_cfg):
+
+            num_steps = 0
+            # Set random arms init location
+            armsGridPos = [[np.random.randint(5),np.random.randint(5)], [np.random.randint(5,10),np.random.randint(5)]]
+
+            #if j<4: continue
+
+            # Run solution (get num of steps)
+            try:
+                showSolution(policy, armsGridPos)
+                pieces_str = pieces if i==0 else "IDEM"
+                print(armsGridPos, ";", pieces_str, ";", num_steps)
+            except:
+                # Maybe there is no solution for the random pieces/arms init configuration
+                pass
+
+#            import sys
+#            sys.exit()
+#        # only the first pieces configuration
+#        import sys
+#        sys.exit()
+
 
     # Generate helper python code for applying a solution to YuMi robot
     # DMG: need to detect step related to a piece (there is no stored arm configuration for it. Pieces location does not match arm grid locations)
     #generatePythonPlan(policy, initial_pos, pieces)
-    generateTxtPlan(policy, init_pos, pieces)
+    #generateTxtPlan(policy, init_pos, pieces)

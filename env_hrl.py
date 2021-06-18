@@ -22,9 +22,9 @@ class env_hrl:
         #
         # State space:
         # - arms position (x,y)
-        # - arms status (searching or carrying the piece)
+        # - arms status (0-searching, 1-carrying the piece, 2-done)
         #
-        # S = (10*5*2) * (10*5*2) = 10000
+        # S = (10*5*3) * (10*5*3) = 22500
         #
         # Action space:
         # - move (left/right/up/down), pick, drop, stay
@@ -37,11 +37,13 @@ class env_hrl:
         self.armsGridPos, self.armsStatus = self._getDefaultResetState()
 
         # State space size
-        self.nS = (2*self.M*self.N)**2
+        self.nS = (3*self.M*self.N)**2
 
         # Action space size: 
         self.single_nA = 7
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
+        
+        # Extra internal var to indicate task DONE (so in terminal state)
 
         # Pieces locations are also mapped to the same robot 2D grid (even if
         # the real piece position does not match the 2D grid point)
@@ -57,18 +59,18 @@ class env_hrl:
         #       the right positions, instead of using the standard 2D defined
         #       grid.
         #
-        self.piecesLocation = { 'start':[], 'end':[] }
-        for cfg in self.piecesCfg:
-            # find corresponding grid location for each piece
-            xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
-            xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
+        #self.piecesLocation = { 'start':[], 'end':[] }
+        #for cfg in self.piecesCfg:
+        #    # find corresponding grid location for each piece
+        #    xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
+        #    xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
 
-            self.piecesLocation['start'].append(xy_i)
-            self.piecesLocation['end'  ].append(xy_j)
+        #    self.piecesLocation['start'].append(xy_i)
+        #    self.piecesLocation['end'  ].append(xy_j)
 
-            # update robot grid
-            self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
-            self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
+        #    # update robot grid
+        #    self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
+        #    self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
 
         #########
         ##
@@ -81,15 +83,36 @@ class env_hrl:
     #
     #############################################################
 
-    def setPieces(self, piecesCfg):
+    def setPiecesLocation(self, piecesCfg):
+
         self.piecesLocation = { 'start':[], 'end':[] }
-        for cfg in self.piecesCfg:
+        for cfg in piecesCfg:
+            if cfg == {}:
+                xy_i = []
+                xy_j = []
+            else:
+                # find corresponding grid location for each piece
+                xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
+                xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
+
+            self.piecesLocation['start'].append(xy_i)
+            self.piecesLocation['end'  ].append(xy_j)
+#            print(cfg)
+#        print(self.piecesLocation)
+
+    def setPiecesRobotLocation(self, piecesCfg):
+        ''' Update robot locations (xyz) for each piece location (pieces probably won't
+            be on an exact 2D grid location '''
+
+        for cfg in piecesCfg:
             # find corresponding grid location for each piece
             xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
             xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
 
-            self.piecesLocation['start'].append(xy_i)
-            self.piecesLocation['end'  ].append(xy_j)
+            # update robot grid
+            self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
+            self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
+        
 
     def _int2extState(self, armsPos, armsStatus):
         ''' convert internal state representation to a single scalar '''
@@ -99,7 +122,7 @@ class env_hrl:
 
         tmp = 0
         for status in armsStatus:
-            tmp *= 2
+            tmp *= 3
             tmp += status
         state += tmp
 
@@ -107,7 +130,7 @@ class env_hrl:
         for x,y in armsPos:
             tmp *= (N*M)
             tmp += self._xy2idx([x,y])
-        state += tmp * (len(armsPos)*2)
+        state += tmp * 9
 
         return state
 
@@ -117,9 +140,9 @@ class env_hrl:
 
         arms_status = []
         for _ in self.armsStatus:
-            tmp = state % 2
+            tmp = state % 3
             arms_status.insert(0, tmp)
-            state = (state - tmp) // 2
+            state = (state - tmp) // 3
 
         arms_pos = [] 
         for _ in self.armsGridPos:
@@ -190,6 +213,12 @@ class env_hrl:
         #
         # Info response field will indicate this issue: 'invalid'
         #
+
+        # Trick...this states are valid, but any move from them is invalid:w
+        #if state>=3897 and state<=3904:
+        #    print('Trick ' ,state)
+        #    return False
+
         self.reset(state)
 
         valid_state = self.robot.checkValidLocation(self.armsGridPos)
@@ -279,15 +308,16 @@ class env_hrl:
 
 
             if self._isGoalMet():
-                reward = 100
+                reward = 10000
                 done   = True
+                print('GOAL MET ', self.armsGridPos)
             else:
                 # Different reward when moving one or both arms helps to:
                 # - prefer moving both arms at once (-2) than separately (-3.8)
                 # - prefer moving only one arm when the other already got 
                 #   its goal (-1.9 better than -2)
-                if move_both_arms == True: reward = -3
-                else:                      reward = -2
+                if move_both_arms == True: reward = -1
+                else:                      reward = -1
         else:
             # The same reward (punishment) for any unwanted action
             reward = -20
@@ -300,8 +330,10 @@ class env_hrl:
 
     def _isGoalMet(self):
         ''' Is MDP solved? '''
+        return self.armsStatus == [2,2]
+      
         #TODO: define a goal
-        return False
+        #return False
         #return (np.sum(self.armsStatus) == 0) and (self.armsGridPos[0] == self.piecesLocation['start'][0]) and (self.armsGridPos[1] == self.piecesLocation['start'][1])
         #return (np.sum(self.armsStatus) == 1) and (self.armsGridPos[0] == self.piecesLocation['end'][0]) and (self.armsGridPos[1] == self.piecesLocation['end'][1])
 

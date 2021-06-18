@@ -17,7 +17,8 @@ class mdp_solver():
 
         # Value Iteration
         if algorithm == 0:
-            policy = self._npVI(discount_factor = 0.95)
+            #policy = self._npVI(discount_factor = 0.95)
+            policy = self._npVI(discount_factor = 1)
         ## BFS (graph search)
         #elif algorithm == 1:
         #    path = BFS(MDP)
@@ -38,14 +39,44 @@ class mdp_solver():
         states, rewards = self.MDP
         V = np.zeros(len(states), dtype=np.float)
     
+        self.rewards = rewards
+        i=0
+        delta_old = 0
         while True:
             Vk = np.max(rewards + discount_factor*V[states], axis=1)
             delta = np.max(np.abs(Vk-V))
+            #print(delta, np.argmax(np.abs(Vk-V)))
+            self.V = V
+            self.Vk = Vk
             V = Vk
+            #if delta < theta or delta == 1:
+            #if delta < theta or delta == 20:
             if delta < theta:
                 break
+
+            ## Force end (states ieland never converge with discount_factor=1 )
+            if delta == delta_old:
+                i+=1
+                if i>160:
+                    #print('BREAK SOLVE')
+                    break
+            else:
+                delta_old = delta
+                i=0
     
-        policy = np.argmax(rewards + discount_factor*V[states], axis=1)
+        VA = rewards + discount_factor*V[states]
+#        one_arm = [7*x+6 for x in range(6)] + [7*6+x for x in range(6)]
+#        two_arm = [7*x+y for x in range(6) for y in range(6)]
+#        all_arm = np.array(one_arm + two_arm)
+#        VA2 = np.zeros_like(VA)
+#        print(one_arm, two_arm, all_arm, VA2.shape)
+#        VA2[:, 0:len(one_arm)] = VA[:, one_arm]
+#        VA2[:, len(one_arm):]  = VA[:, two_arm]
+#
+#        policy = all_arm[np.argmax(VA2, axis=1)]
+        policy = np.argmax(VA, axis=1)
+
+        #print('SOLVED')
     
         return policy
 
