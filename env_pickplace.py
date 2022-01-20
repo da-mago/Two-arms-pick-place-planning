@@ -3,10 +3,12 @@ import time
 import random
 import numpy as np
 import pickle
-import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
-from matplotlib.backend_bases import MouseButton
-from robot_2A2L import Robot_2A2L
+  # NEED TO INSTALL THIS PACKAGE
+  #import matplotlib.pyplot as plt
+  #from mpl_toolkits import mplot3d
+  #from matplotlib.backend_bases import MouseButton
+  # NEED TO INSTALL TINYIK (and add a change if I remember how)
+  #from robot_2A2L import Robot_2A2L
 from robot_YuMi import Robot_YuMi
 import code
 
@@ -121,22 +123,30 @@ class env_pickplace:
          
          
         # State space:
-        # - Robot moves in a 2D M*N grid
+        # - Robot moves in a 2D M*N grid + pick/drop operations in vertical direction
         # - Each state is internally represented by:
-        #   - arms position (x,y)
+        #   - arms position (x,y) and pickPosition
         #   - arms status (arm carrying the piece i or none)
         #   - pieces status (piece pending to be picke up)
+        #
         # - Each state is externally represented by a single scalar (see
         #   _int2extState() function)
         #
         self.M, self.N = self.robot.M, self.robot.N
         self.K = len(self.piecesCfg)
+        self.P = 2 # Number of ´extra´ states representing the pick up or drop off operation
+                   #  P = 0      2      4
+                   #     .->.   .  .   .  .
+                   #            |  |   |  |
+                   #             ->    |  |
+                   #                    ->
  
         # Initial state (internal representation) 
-        self.armsGridPos, self.armsStatus, self.piecesMap = self._getDefaultResetState()
+        self.armsGridPos, self.armsStatus, self.piecesMap, self.pickStatus = self._getDefaultResetState()
 
         # State space size
-        self.nS = ((self.M*self.N)**2) * (2**self.K) * ((self.K+1)**2)
+        # Note: instead fo M*N*P (3D), we extend Z axis only for K cells (where piece can be picked or dropeed). This is just to reduce memory resources. In the end we would end up filtering out those cells where you can not pick/drop a piece
+        self.nS = ((self.M*self.N + (self.K * self.P))**2) * (2**self.K) * ((self.K+1)**2)
 
         # Action space size: 
         self.single_nA = 7
@@ -190,10 +200,15 @@ class env_pickplace:
     # Helper functions
     #
     #############################################################
+    def _getIntState(self):
+        return [self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos]
 
-    def _int2extState(self, armsPos, armsStatus, piecesMap):
+    def _getExtState(self):
+        return self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
+
+    def _int2extState(self, armsPos, armsStatus, piecesMap, pickPos):
         ''' convert internal state representation to a single scalar '''
-        N,M,K = self.N, self.M, self.K
+        N,M,K,P = self.N, self.M, self.K, self.P
 
         state = piecesMap
 
@@ -204,16 +219,19 @@ class env_pickplace:
         state += tmp * (2**K)
 
         tmp = 0
-        for x,y in armsPos:
-            tmp *= (N*M)
-            tmp += self._xy2idx([x,y])
+        for (x,y),p in zip(armsPos, pickPos):
+            tmp *= (N*M + K*P)
+            if p == 0 or self.P == 0:
+                tmp += self._xy2idx([x,y])
+            else:
+                tmp += N*M-1 + p
         state += tmp * (2**K) * ((K+1)**2)
 
         return state
 
     def _ext2intState(self, state):
         ''' convert external state (scalar) to internal state representation '''
-        N,M,K = self.N, self.M, self.K
+        N,M,K,P = self.N, self.M, self.K, self.P
 
         pieces_map = state % (2**K) 
         state = (state - pieces_map) // (2**K)
@@ -225,12 +243,18 @@ class env_pickplace:
             state = (state - tmp) // (K+1)
 
         arms_pos = [] 
+        pick_pos = []
         for _ in self.armsGridPos:
-            idx = state % (N*M)
-            state = (state - idx) // (N*M) 
-            arms_pos.insert(0, self._idx2xy(idx))
+            idx = state % (N*M + K*P)
+            state = (state - idx) // (N*M + K*P) 
+            if idx >= N*M:
+                arms_pos.insert(0, [-1,-1]) # Unknown xy location
+                pick_pos.insert(0, idx+1 - N*M)
+            else:
+                arms_pos.insert(0, self._idx2xy(idx))
+                pick_pos.insert(0, 0)
 
-        return [arms_pos, arms_status, pieces_map]
+        return [arms_pos, arms_status, pieces_map, pick_pos]
 
     def _ext2intAction(self, action):
         ''' convert external action (scalar) to internal action representation '''
@@ -292,11 +316,11 @@ class env_pickplace:
         x,y = pos
         return not ((x >= self.M) or (x < 0) or (y >= self.N) or (y < 0))
 
-    def _isPiecesStatusValid(self, armsGridPos, armsStatus, piecesMap):
+    def _isPiecesStatusValid(self, armsStatus, piecesMap, pickPos):
         ''' Check pieces status coherence '''
 
         # Memoization
-        #idx = self._int2extState([[0,0],[0,0]], self.armsStatus, self.piecesMap) # luckily we can reuse this function (setting higher component to 0s)
+        #idx = self._int2extState([[0,0],[0,0]], self.armsStatus, self.piecesMap, self.pickPos) # luckily we can reuse this function (setting higher component to 0s)
         #if idx in self.piecesStatusValid.keys():
         #    print('j', idx)
         #    return self.piecesStatusValid[idx]
@@ -316,22 +340,33 @@ class env_pickplace:
                     res = False
                     break
 
-        # - When the job is done, at least one arm should be at a target piece position
-#        if res == True:
-#            if (piecesMap == 0) and np.sum(armsStatus) == 0:
-#                tmp = [ p1==p2 for p1 in armsGridPos for p2 in self.piecesLocation['end'] ]
-#                res = True in tmp
-
+        # - incoherence: pick position not valid
+        if res == True:
+            # Both arms picking/dropping the same piece
+            if 0 not in pickPos:
+                if ((pickPos[0]-1)/self.P == (pickPos[1]-1)/self.P):
+                    res = False
+                
+        if res == True:
+            for piece, p in zip(armsStatus, pickPos):
+                # Drop operation pick_pos and piece need to match
+                if piece>0 and p>0 and piece!=(((p-1)//self.P) + 1):
+                     # carrying a piece and pick/drop other
+                     res = False
+                     break
 
         # and store it
         #self.piecesStatusValid[idx] = res
 
         return res
 
-    def _isPickUpActionValid(self, arm_grid_pos, arm_status, pieces_map):
+    def _isPickUpActionValid(self, arm_grid_pos, arm_status, pieces_map, pick_pos):
         ''' Check pick up action coherence in the current state for a specific arm '''
-        valid = False
+        if pick_pos > 0 and arm_status == 0:
+            return True, (pick_pos-1)//self.P
+
         piece = 0
+        valid = False
 
         if arm_status == 0:
             for i,piece_pos in enumerate(self.piecesLocation['start']):
@@ -344,8 +379,11 @@ class env_pickplace:
 
         return valid, piece
 
-    def _isDropOffActionValid(self, arm_grid_pos, arm_status):
+    def _isDropOffActionValid(self, arm_grid_pos, arm_status, pick_pos):
         ''' Check drop off action coherence in the current state for a specific arm '''
+        if pick_pos > 0 and arm_status != 0:
+            return True, (pick_pos-1)//self.P
+
         valid = False
 
         if arm_status > 0:
@@ -353,7 +391,7 @@ class env_pickplace:
             if piece_pos == arm_grid_pos:
                 valid = True
 
-        return valid
+        return valid, arm_status-1
 
     def _isGoalMet(self):
         ''' Is MDP solved? '''
@@ -363,15 +401,17 @@ class env_pickplace:
         armsGridPos = [[0,0], [6,4]]  # init 2D grid pos
         armsStatus  = [0, 0]          # init status: carrying no piece
         piecesMap   = (2**self.K) - 1 # init status: No piece has been picked up yet
-        return [armsGridPos, armsStatus, piecesMap]
+        pickPos     = [0,0]
+
+        return [armsGridPos, armsStatus, piecesMap, pickPos]
 
     def reset(self, state=None):
         ''' Bring environment to the default state '''
 
         if state == None:
-            self.armsGridPos, self.armsStatus, self.piecesMap = self._getDefaultResetState()
+            self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos = self._getDefaultResetState()
         else:
-            self.armsGridPos, self.armsStatus, self.piecesMap = self._ext2intState(state)
+            self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos = self._ext2intState(state)
 
         self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
 
@@ -404,7 +444,7 @@ class env_pickplace:
     #    for i, item in enumerate(self.MDP[2]):
     #        state_idx[item] = i
 
-    #    state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+    #    state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
     #    reward = self.MDP[1][state_idx[state]][action]
 
     #    # Goal completed. Do nothing (reward is 0)
@@ -439,7 +479,7 @@ class env_pickplace:
     #            elif a == 5:
     #                self.armsStatus[i]  = 0
 
-    #        state = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+    #        state = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
 
     #    return state, reward, done, info
 
@@ -452,17 +492,25 @@ class env_pickplace:
         # - Robot arms collission
         # - Invalid piece status (internal state representation issue)
         #
-        # Info response field will indicate this issue: 'invalid'
-        #
+        # Info response field will indicate this issue: 'invalid' #
         self.reset(state)
 
-        valid_state = self.robot.checkValidLocation(self.armsGridPos)
+        #if self.pickPos != [0,0]:
+        #    return False
+
+        valid_state = True
+
+        if valid_state:
+            valid_state = self.robot.checkValidLocation(self.armsGridPos)
 
         if valid_state:
             valid_state = not self.robot.checkCollision(self.armsGridPos)
 
         if valid_state:
-            valid_state = self._isPiecesStatusValid(self.armsGridPos, self.armsStatus, self.piecesMap)
+            valid_state = self._isPiecesStatusValid(self.armsStatus, self.piecesMap, self.pickPos)
+
+        if (state % (self.nS/100)) == 0:
+            print(state / (self.nS/100))
 
         return valid_state
 
@@ -486,12 +534,23 @@ class env_pickplace:
         if self._isGoalMet():
             # Do not process the action. By design, any action results in the
             # same goal state with reward 0.
-            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
             reward = 0
             done   = True
             info   = ''
             return state, reward, done, info
 
+        # Return special error if any arm is in pick/drop operation
+        #
+        if sum(self.pickPos) > 0 and mode == 1:
+            if self.armsGridPos == [[0, 3], [9, 2]]:
+                print('P ', pick_pos)
+            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
+            reward = -30
+            done   = False
+            info   = ''
+            return state, reward, done, info
+            
         # Now, let's see what happens when applying the agent action. Wrong 
         # actions will be punished, while the good ones will be reinforced
         # (reward reponse)
@@ -509,15 +568,20 @@ class env_pickplace:
         next_arms_status     = self.armsStatus[:]                 # copy 1D list
         next_pieces_map      = self.piecesMap
         next_arms_grid_pos   = []
+        next_pick_pos        = self.pickPos[:]
         next_pieces_grid_pos = [x[:] for x in self.piecesCurrPos] # copy 2D list
         move_both_arms       = True 
 
         offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
 
         joint_a = self._ext2intAction(action)
-        for i,(a, pos) in enumerate(zip(joint_a, self.armsGridPos)):
+        for i,(a, pos, pick_pos) in enumerate(zip(joint_a, self.armsGridPos, self.pickPos)):
+
             # move (right/left/down/up)
             if a < 4:
+                if pick_pos > 0:
+                    valid_state = False # pick/drop operation only allows pick/drop actions
+                    break
                 pos = list(pos + offset_a[a])
                 if not self._isArmsGridPosValid(pos):
                     valid_state = False # Grid boundaries exceeded
@@ -551,24 +615,47 @@ class env_pickplace:
                     # the pieces location) will be recomputed to update the MDP.
                     pick_place_mark = True
                 else:
+                    if pick_pos > 0: tmp_pick_pos = (pick_pos-1)%self.P + 1
+                    else:            tmp_pick_pos = 0
+
                     # pick up
                     if a == 4:
-                        valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap)
+                        valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesMap, pick_pos)
                         if valid_state:
-                            next_arms_status[i]  = piece_idx + 1
-                            next_pieces_map     &= ~(1<<piece_idx)
+                            if tmp_pick_pos >= self.P:
+                                next_pick_pos[i] = 0
+                                next_arms_status[i]  = piece_idx + 1
+                                next_pieces_map     &= ~(1<<piece_idx)
+                            else:
+                                next_pick_pos[i] = tmp_pick_pos + 1 + self.P*piece_idx
+
+                            # Fix location
+                            if pick_pos > 0:
+                                pos = self.piecesLocation['start'][(pick_pos-1)//self.P]
                         else:
                             break # Nothing to pick up
                     # drop off
                     elif a == 5:
-                        valid_state = self._isDropOffActionValid(pos, self.armsStatus[i])
+                        valid_state, piece_idx = self._isDropOffActionValid(pos, self.armsStatus[i], pick_pos)
                         if valid_state:
-                            next_arms_status[i]  = 0
+                            if tmp_pick_pos >= self.P:
+                                next_pick_pos[i] = 0
+                                next_arms_status[i]  = 0
+                            else:
+                                next_pick_pos[i] = tmp_pick_pos + 1 + self.P*piece_idx
+
+                            # Fix location
+                            if pick_pos > 0:
+                                pos = self.piecesLocation['end'][(pick_pos-1)//self.P]
                         else:
                             break # Nothing to drop off
             # stay
             else:
                 move_both_arms  = False # One arm stays still
+                #TODO: Tbis should be OK
+                #if pick_pos>0:
+                #    valid_state = False
+                #    break
 
             next_arms_grid_pos.append(pos)
 
@@ -579,7 +666,7 @@ class env_pickplace:
             valid_state = not self.robot.checkCollision(next_arms_grid_pos)
 
         if valid_state:
-            valid_state = self._isPiecesStatusValid(next_arms_grid_pos, next_arms_status, next_pieces_map)
+            valid_state = self._isPiecesStatusValid(next_arms_status, next_pieces_map, next_pick_pos)
 
         if valid_state:
             if pick_place_mark:
@@ -589,6 +676,7 @@ class env_pickplace:
                 self.armsStatus    = next_arms_status
                 self.piecesMap     = next_pieces_map
                 self.armsGridPos   = next_arms_grid_pos
+                self.pickPos       = next_pick_pos
                 self.piecesCurrPos = next_pieces_grid_pos
 
                 if self._isGoalMet():
@@ -599,14 +687,16 @@ class env_pickplace:
                     # - prefer moving both arms at once (-2) than separately (-3.8)
                     # - prefer moving only one arm when the other already got 
                     #   its goal (-1.9 better than -2)
-                    if move_both_arms == False: reward = -9 # 1 arm
-                    else:                       reward = -10 # 2 arms
+                    #if joint_a[1] != 6:         reward = -5
+                    #elif move_both_arms == False: reward = -1 # 1 arm
+                    if move_both_arms == False: reward = -1 # 1 arm
+                    else:                       reward = -1 # 2 arms
         else:
             # The same reward (punishment) for any unwanted action
             reward = -20
 
         # Build response
-        observation = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap)
+        observation = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesMap, self.pickPos)
 
 
         return observation, reward, done, info

@@ -1,5 +1,5 @@
 
-from robot import Robot
+#from robot import Robot
 import numpy as np
 import csv
 
@@ -18,7 +18,9 @@ class Robot_YuMi():
         self.min_dist = min_dist # Distance considered collision (cm)
         self.z = z               # Default z value for robot EEs
 
-        self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
+        #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
+        #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
+        self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v4.csv')    
 
 
     def _loadCSV(self, distanceFilename, configFilename):
@@ -29,16 +31,23 @@ class Robot_YuMi():
         # 1. Robot configuration
         with open(configFilename) as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
-            csv_data = [row for i,row in enumerate(csv_reader) if i>=3]
+            #csv_data = [row for i,row in enumerate(csv_reader) if i>=3]
+            csv_data = [row for i,row in enumerate(csv_reader)]
 
-        grid_size = len(csv_data)
+        #grid_size = len(csv_data)
+        M  = int(csv_data[0][1])
+        N  = int(csv_data[0][2])
+        Zs = int(csv_data[0][4])
+        grid_size = M*N
         angles_size = 7
+        csv_data = csv_data[3:] # Skip non-arm-data rows
 
         location  = np.zeros((grid_size, 3), dtype=np.int16)
         reachable = np.zeros((2, grid_size), dtype=np.uint8)
-        config    = np.zeros((2, grid_size, angles_size), dtype=np.float) 
-        M = len(set([ int(row[1]) for row in csv_data]))
-        N = len(set([ int(row[0]) for row in csv_data]))
+        #config    = np.zeros((2, grid_size, angles_size), dtype=np.float) 
+        config    = np.zeros((2, Zs, grid_size, angles_size), dtype=np.float) 
+        #M = len(set([ int(row[1]) for row in csv_data]))
+        #N = len(set([ int(row[0]) for row in csv_data]))
         idx = 0
         for y in range(N):
             for x in range(M):
@@ -55,12 +64,27 @@ class Robot_YuMi():
                 idx += 1
 
                 location[i] = [-int(row[1]), int(row[0]), self.z]
-                #reachable[0, i] = 1 if row[10]=='Si' else 0        # valid EE location (left)
-                #reachable[1, i] = 1 if row[2 ]=='Si' else 0        # right
-                reachable[0, i] = int(row[2+10])                    # valid EE location (left)
-                reachable[1, i] = int(row[2 ])                      # right
-                config[0, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
-                config[1, i] = [float(t) for t in row[3:10]]        # right
+                #reachable[0, i] = 1 if row[10]=='Si' else 0           # valid EE location (left)
+                #reachable[1, i] = 1 if row[2 ]=='Si' else 0           # right
+                reachable[0, i] = int(row[2+10])                       # valid EE location (left)
+                reachable[1, i] = int(row[2 ])                         # right
+                config[0, 0, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
+                config[1, 0, i] = [float(t) for t in row[3:10]]        # right
+
+        # Get data for other Zs grids (used when moving up/down)
+        for otherZ in range(Zs - 1):
+            idx += 2 # there are 2 comment lines between blocks
+            for y in range(N):
+                for x in range(M):
+                    # Read Reachable and config for other Zs (used in pick/drop operations)
+                    i  = (M-1-x) + y*M
+                    row = csv_data[idx]
+                    idx += 1
+
+                    #reachable[0, i] = int(row[2+10])                    # valid EE location (left)
+                    #reachable[1, i] = int(row[2 ])                      # right
+                    config[0, otherZ+1, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
+                    config[1, otherZ+1, i] = [float(t) for t in row[3:10]]        # right
 
         # 2. Robot collision (distance between arms)
         with open(distanceFilename) as csv_file:
@@ -98,6 +122,10 @@ class Robot_YuMi():
 
 
     def checkCollision(self, armsGridPos):
+        # Ignore the check if any arm pos is unknown
+        if [-1,-1] in armsGridPos:
+            return False
+
         idx = self._xyxy2idx(armsGridPos)
         if self.distance[idx] <= self.min_dist:
             return True
@@ -118,9 +146,10 @@ class Robot_YuMi():
 
     def checkValidLocation(self, armsGridPos):
         for pos, reach in zip(armsGridPos, self.reachable):
-            idx = self._xy2idx(pos)
-            if not reach[idx]:
-                return False
+            if pos != [-1,-1]: # Ignore the check if the arm pos is unknown
+                idx = self._xy2idx(pos)
+                if not reach[idx]:
+                    return False
 
         ## Trampa para que el brazo izquierdo no pase de cierta posicion en el eje X. Es algo temporal para generar una solucion trucada para llevarla a RobotStudio
         ## Si y<=400 and x>=250, o y>=500 and x>=150

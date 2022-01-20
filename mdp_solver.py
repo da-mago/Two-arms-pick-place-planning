@@ -37,7 +37,7 @@ class mdp_solver():
         '''
     
         states, rewards = self.MDP
-        V = np.zeros(len(states), dtype=np.float)
+        V = np.zeros(len(states), dtype=np.float32)
     
         self.rewards = rewards
         i=0
@@ -54,27 +54,28 @@ class mdp_solver():
             if delta < theta:
                 break
 
-            ## Force end (states ieland never converge with discount_factor=1 )
+            ## Force end (states island never converge with discount_factor=1 )
             if delta == delta_old:
                 i+=1
-                if i>160:
-                    #print('BREAK SOLVE')
+                if i>80:
+                    #print('BREAK SOLVE', delta)
                     break
             else:
                 delta_old = delta
                 i=0
     
         VA = rewards + discount_factor*V[states]
-#        one_arm = [7*x+6 for x in range(6)] + [7*6+x for x in range(6)]
-#        two_arm = [7*x+y for x in range(6) for y in range(6)]
-#        all_arm = np.array(one_arm + two_arm)
-#        VA2 = np.zeros_like(VA)
-#        print(one_arm, two_arm, all_arm, VA2.shape)
-#        VA2[:, 0:len(one_arm)] = VA[:, one_arm]
-#        VA2[:, len(one_arm):]  = VA[:, two_arm]
-#
-#        policy = all_arm[np.argmax(VA2, axis=1)]
-        policy = np.argmax(VA, axis=1)
+
+        one_arm = [7*x+6 for x in range(6)] + [7*6+x for x in range(6)]
+        two_arm = [7*x+y for x in range(6) for y in range(6)]
+        all_arm = np.array(one_arm + two_arm)
+        VA2 = np.zeros_like(VA)
+        #print(one_arm, two_arm, all_arm, VA2.shape)
+        VA2[:, 0:len(one_arm)] = VA[:, one_arm]
+        VA2[:, len(one_arm):]  = VA[:, two_arm]
+
+        policy = all_arm[np.argmax(VA2, axis=1)]
+#        policy = np.argmax(VA, axis=1)
 
         #print('SOLVED')
     

@@ -115,6 +115,8 @@ from mdp_solver import mdp_solver
 import numpy as np
 import pickle
 import time
+import timeit
+#import copy
 
 class mdp_hrl_generator(env_hrl):
     def __init__(self, robot, pieces):
@@ -373,7 +375,7 @@ def runLowMDP(policy, mapped_state):
         #print("sds", joint_a)
         state = robot_mdp.MDP[2][mapped_state]
         armsGridPos, armsStatus = robot_mdp._ext2intState(state)
-        #print(joint_a, armsGridPos, armsStatus)
+        print(joint_a, armsGridPos, armsStatus)
         if 5 in joint_a:
             pieces_done = [a==5 for a in joint_a]
             break
@@ -460,6 +462,7 @@ def getMDPPolicy(num_pieces, p1, p2):
     global MDP_cache
     global solver
     
+    #print("policy")
     # Cache (dont repeat computations)
     idx = p1*(num_pieces+1) + p2
     if MDP_cache[idx] != None:
@@ -483,16 +486,21 @@ def getMDPPolicy(num_pieces, p1, p2):
     #if not robot_mdp.load('MDP.bin'):
     #    robot_mdp.generate()
     #    robot_mdp.save('MDP.bin')
-    robot_mdp.MDP = MDP_template[:]
+    #robot_mdp.MDP = MDP_template[:]
     robot_mdp.load('MDP.bin')
+    #robot_mdp.MDP = copy.deepcopy(MDP_template)
 
     # Update it with pieces info
     robot_mdp.setPiecesLocation(two_pieces)
     robot_mdp.update()
+    #print('PP')
 
     # Solve it
     solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
+    #start = timeit.default_timer()
     policy = solver.solve()
+    #end = timeit.default_timer()
+    #print(end - start)
 
     # Update cache
     MDP_cache[idx] = [robot_mdp.MDP[:], policy]
@@ -507,10 +515,17 @@ def generateL0MDP(prev, p1, p2, mapped_state, piecesList, total_R, path):
     global MDP
     global best_total_R
     global best_path
+    global path_NA
 
     if p1 == 0 and p2 == 0:
        print("WTF!!!")
        sys.exit()
+
+    if [p1, p2] in path_NA:
+       # This subproblem is known to be non-solveable. Do not compute it again
+       # it seems not to optimize nothing. This subMDP was already solved previously and it is the higher computation phase.
+       #print("KNOWN not SOLVEABLE ",[p1,p2], path_NA)
+       return
 
     prefix_tab = '  '*len(path)
     #print(prefix_tab + 'generateL0MDP', p1,p2)
@@ -527,13 +542,23 @@ def generateL0MDP(prev, p1, p2, mapped_state, piecesList, total_R, path):
     #print(p1,p2)
     R, mapped_state, pieces_done = getReturn(mdp, policy, mapped_state)
     total_R += R
-    #print(R)
+    #print(R, pieces_done, p1, p2, path)
     #print(prefix_tab, pieces_done)
 
     if pieces_done == [0,0]:
-        #print(prefix_tab + 'BRANCH PRUNED')
+        #print(prefix_tab + 'PRUNED - path not found')
+        path_NA.append([p1,p2])
         return
 
+    if (((pieces_done[0] == False) and (p1 != 0)) or
+        ((pieces_done[1] == False) and (p2 != 0))):
+        # Hang... (endless loop) No new piece solved
+        return
+
+    if total_R <= best_total_R:
+        # Prune this path...it is not to get better reward
+        #print('PRUNED - Worse path', total_R, best_total_R)
+        return
     # Update state - If an arm is done with the piece, reset its status (armStatus: 2->0)
     # mapped_state -> state -> internal state -> fix internal state -> state -> mapped_state
     state = robot_mdp.MDP[2][mapped_state]
@@ -739,7 +764,11 @@ if __name__ == "__main__":
         robot_mdp.generate()
         robot_mdp.save('MDP.bin')
 
-    MDP_template = robot_mdp.MDP[:]
+    #MDP_template = robot_mdp.MDP[:]
+    #MDP_template = copy.deepcopy(robot_mdp.MDP)
+
+    # Other dirty thing to check: annotate unsolveable cases and do not repeat computation
+    path_NA = []
 
     # Test the solution for several pieces configurations and several arms init locations
     #
@@ -749,12 +778,15 @@ if __name__ == "__main__":
         pieces = [{'start' : [-50 - 100*np.random.randint(5), 200 + 100*np.random.randint(5), 0],  # Piece 1
                    'end'   : [ 50 + 100*np.random.randint(5), 200 + 100*np.random.randint(5), 0],
                   } for _ in range(4)] # 4 pieces
+        ## Trick to add pieces (more random locations would end up in some unreachable piece for both arms)
+        #for kk in range(5):
+        #   pieces.append(pieces[kk].copy())
         pieces_str = pieces
 
         for _ in range(5):
             armsGridPos = [[np.random.randint(5),np.random.randint(5)], [np.random.randint(5,10),np.random.randint(5)]]
 
-            #if j<4: continue
+            #if j<2: continue
 
             num_steps = 0
             this = 0
@@ -798,6 +830,8 @@ if __name__ == "__main__":
                 print('except')
                 pass
             print(armsGridPos, ";", pieces_str, ";", num_steps)
+            import sys
+            sys.exit()
             pieces_str = "IDEM" # Cleaner than repeating the whole pieces location
 #    sys.exit()
 
