@@ -141,14 +141,15 @@ def generateTxtPlan(policy, initial_pos, pieces):
     #for ang in reversed(arms_config):
     #    print(','.join([str(x) for x in ang]))
 
-    for ang,(pos_x, pos_y) in zip(reversed(arms_config), reversed(initial_pos)):
+    gripper = [0,0] # Gripper state: 0 (Open) | 1 (Close)
+    for ang,(pos_x, pos_y),grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
         # Format:
         #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
         z = Z_PLANE
         src += ','.join([str(x) for x in ang]) 
         idx = pos_x + pos_y*robot_mdp.M
         x,y,_ = robot.location[idx]
-        src += ' # {} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
+        src += ',{} # {} {} {}\n'.format(grip, y,-x,z) # Axis conversion for RobotStudio
 
     done = False
     while done == False:
@@ -167,7 +168,8 @@ def generateTxtPlan(policy, initial_pos, pieces):
         grid_block = []
         gripper_action = []
         joint_a = robot_mdp._ext2intAction(action)
-        for a_pos, p_pos, a_a in zip(arms_pos, pick_pos, joint_a):
+        gripper = [0, 0]
+        for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
                 if a_a == 4:
@@ -186,8 +188,8 @@ def generateTxtPlan(policy, initial_pos, pieces):
                 if a_a == 4 or a_a == 5:                        gripper_action.append(GRIPPER_UP)
                 else:                                           gripper_action.append(GRIPPER_XY)
             elif tmp_p_pos < (robot_mdp.P/2 + 1):               gripper_action.append(GRIPPER_DOWN)
-            elif (tmp_p_pos == robot_mdp.P/2 + 1) and a_a == 4: gripper_action.append(GRIPPER_CLOSE) # pick
-            elif (tmp_p_pos == robot_mdp.P/2 + 1):              gripper_action.append(GRIPPER_OPEN)  # drop
+            elif (tmp_p_pos == robot_mdp.P/2 + 1) and a_a == 4: gripper_action.append(GRIPPER_CLOSE); gripper[i] = 2 # Gripper close
+            elif (tmp_p_pos == robot_mdp.P/2 + 1):              gripper_action.append(GRIPPER_OPEN);  gripper[i] = 1 # Gripper open
             else:                                               gripper_action.append(GRIPPER_UP)
             print('c', gripper_action)
             # Z value
@@ -208,21 +210,21 @@ def generateTxtPlan(policy, initial_pos, pieces):
         #    src += '{} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
         print('a')
 
-        for ang,pos,z,gripper in zip(reversed(arms_config), reversed(arms_loc), reversed(zs), reversed(gripper_action)):
-            # Format:
-            #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
+        for ang,pos,z,grip_info,grip in zip(reversed(arms_config), reversed(arms_loc), reversed(zs), reversed(gripper_action), reversed(gripper)):
+            # Format:  ANGLES, grip state
             src += ','.join([str(x) for x in ang]) 
-            if gripper == GRIPPER_OPEN:
+            src += ',{}'.format(grip) 
+            if grip_info == GRIPPER_OPEN:
                 src += " # GRIPPER OPEN\n"
-            elif gripper == GRIPPER_CLOSE:
+            elif grip_info == GRIPPER_CLOSE:
                 src += " # GRIPPER CLOSE\n"
             else:
                 x,y,_ = pos
                 src += ' # {} {} {}'.format(y,-x,z) # Axis conversion for RobotStudio
-                if gripper == GRIPPER_UP:
-                    src += " (GRIPPER UP)"
-                elif gripper == GRIPPER_DOWN:
-                    src += " (GRIPPER DOWN)"
+                if grip_info == GRIPPER_UP:
+                    src += " GRIPPER UP"
+                elif grip_info == GRIPPER_DOWN:
+                    src += " GRIPPER DOWN"
                 src += '\n'
         print('b')
 
@@ -365,7 +367,7 @@ if __name__ == "__main__":
                    'end'   : [  50, 200, 0],
                   },                     
                   {'start' : [-450, 300, 0],  # Piece 3
-                   'end'   : [ 250, 500, 0],
+                   'end'   : [ 150, 500, 0],
                   },                     
                   {'start' : [-150, 600, 0],  # Piece 4
                    'end'   : [ 350, 200, 0],
