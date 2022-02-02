@@ -117,9 +117,11 @@ def generateTxtPlan(policy, initial_pos, pieces):
     GRIPPER_CLOSE = 2
     GRIPPER_OPEN  = 3
     GRIPPER_UP    = 4
-    Z_PLANE       = 180
-    Z_UPDOWN      = 110
-    Z_GRIPPER     = Z_UPDOWN
+    #Z_PLANE       = 180
+    #Z_UP          = 180
+    #Z_DOWN        = 110
+    #Z_GRIPPER     = Z_DOWN
+    Z_GRIPPER     = [180, 110]
 
     src  = '\n'
     # Initial position
@@ -145,7 +147,7 @@ def generateTxtPlan(policy, initial_pos, pieces):
     for ang,(pos_x, pos_y),grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
         # Format:
         #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
-        z = Z_PLANE
+        z = Z_GRIPPER[0]
         src += ','.join([str(x) for x in ang]) 
         idx = pos_x + pos_y*robot_mdp.M
         x,y,_ = robot.location[idx]
@@ -165,10 +167,10 @@ def generateTxtPlan(policy, initial_pos, pieces):
         arms_pos, _, _, pick_pos = robot_mdp._ext2intState(next_state)
         idxs = []
         zs   = []
-        grid_block = []
+        z_plane = []
         gripper_action = []
         joint_a = robot_mdp._ext2intAction(action)
-        gripper = [0, 0]
+        #gripper = [0, 0]
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
@@ -184,21 +186,25 @@ def generateTxtPlan(policy, initial_pos, pieces):
             idxs.append(x + y*robot_mdp.M)
             # Go down, up, open, close gripper
             print('d', a_a, tmp_p_pos, robot_mdp.P)
+            #                                                     opened/closed           Z                arm Zcomment (grip action)        
             if tmp_p_pos == 0:
-                if a_a == 4 or a_a == 5:                        gripper_action.append(GRIPPER_UP)
-                else:                                           gripper_action.append(GRIPPER_XY)
-            elif tmp_p_pos < (robot_mdp.P/2 + 1):               gripper_action.append(GRIPPER_DOWN)
-            elif (tmp_p_pos == robot_mdp.P/2 + 1) and a_a == 4: gripper_action.append(GRIPPER_CLOSE); gripper[i] = 2 # Gripper close
-            elif (tmp_p_pos == robot_mdp.P/2 + 1):              gripper_action.append(GRIPPER_OPEN);  gripper[i] = 1 # Gripper open
-            else:                                               gripper_action.append(GRIPPER_UP)
+                if a_a == 4 or a_a == 5:                                           z_plane.append(0);  gripper_action.append(GRIPPER_UP)
+                else:                                                              z_plane.append(0);  gripper_action.append(GRIPPER_XY)
+            elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);  gripper_action.append(GRIPPER_DOWN)
+            elif (tmp_p_pos == robot_mdp.P/2 + 1) and a_a == 4:   gripper[i] = 1;  z_plane.append(1);  gripper_action.append(GRIPPER_CLOSE)
+            elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);  gripper_action.append(GRIPPER_OPEN)
+            else:                                                                  z_plane.append(1);  gripper_action.append(GRIPPER_UP)
             print('c', gripper_action)
             # Z value
-            if tmp_p_pos == 0 and a_a != 4 and a_a !=5: zs.append(Z_PLANE);   grid_block.append(0)
-            elif tmp_p_pos < (robot_mdp.P/2 + 1):       zs.append(Z_UPDOWN);  grid_block.append(1)
-            elif tmp_p_pos == robot_mdp.P/2 + 1:        zs.append(Z_GRIPPER); grid_block.append(1)
-            else:                                       zs.append(Z_UPDOWN);  grid_block.append(1)
+#            if tmp_p_pos == 0:
+#                if a_a == 4 or a_a == 5:                zs.append(Z_UP);      z_plane.append(1)
+#                else:                                   zs.append(Z_PLANE);   z_plane.append(0)
+#            if tmp_p_pos == 0 and a_a != 4 and a_a !=5: zs.append(Z_DOWN);   z_plane.append(0)
+#            elif tmp_p_pos < (robot_mdp.P/2 + 1):       zs.append(Z_DOWN);    z_plane.append(1)
+#            elif tmp_p_pos == robot_mdp.P/2 + 1:        zs.append(Z_GRIPPER); z_plane.append(1)
+#            else:                                       zs.append(Z_UP);      z_plane.append(0)
             
-        arms_config    = [list(robot.config[i, gblock, idx]) for i,(idx,gblock) in enumerate(zip(idxs, grid_block))]
+        arms_config    = [list(robot.config[i, gblock, idx]) for i,(idx,gblock) in enumerate(zip(idxs, z_plane))]
         arms_loc       = [list(robot.location[idx]) for idx in idxs]
         #print(arms_loc)
 
@@ -210,16 +216,18 @@ def generateTxtPlan(policy, initial_pos, pieces):
         #    src += '{} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
         print('a')
 
-        for ang,pos,z,grip_info,grip in zip(reversed(arms_config), reversed(arms_loc), reversed(zs), reversed(gripper_action), reversed(gripper)):
+        for ang,pos,z_p,grip_info,grip in zip(reversed(arms_config), reversed(arms_loc), reversed(z_plane), reversed(gripper_action), reversed(gripper)):
             # Format:  ANGLES, grip state
             src += ','.join([str(x) for x in ang]) 
             src += ',{}'.format(grip) 
+            # Add comment
             if grip_info == GRIPPER_OPEN:
                 src += " # GRIPPER OPEN\n"
             elif grip_info == GRIPPER_CLOSE:
                 src += " # GRIPPER CLOSE\n"
             else:
                 x,y,_ = pos
+                z     = Z_GRIPPER[z_p]
                 src += ' # {} {} {}'.format(y,-x,z) # Axis conversion for RobotStudio
                 if grip_info == GRIPPER_UP:
                     src += " GRIPPER UP"
@@ -360,18 +368,23 @@ if __name__ == "__main__":
         #   pieces.append(pieces[kk].copy())
 
         #Debug: Fixed pieces location
-        pieces = [{'start' : [-350, 300, 0],  # Piece 1
+        # ONLY_LEFT_ARM: replace commented locations (reachable by left arm)
+        pieces = [
+                  {'start' : [-350, 300, 0],  # Piece 1
                    'end'   : [ 250, 500, 0],
                   },                     
                   {'start' : [-250, 500, 0],  # Piece 2
                    'end'   : [  50, 200, 0],
+                   #'end'   : [  250, 200, 0],
                   },                     
                   {'start' : [-450, 300, 0],  # Piece 3
+                  #{'start' : [-350, 300, 0],  # Piece 3
                    'end'   : [ 150, 500, 0],
                   },                     
                   {'start' : [-150, 600, 0],  # Piece 4
                    'end'   : [ 350, 200, 0],
-                  }]
+                  }
+                  ]
         #pieces[0] = pieces[3]
         #pieces[1] = pieces[2]
 #        pieces[1]['start'] = [-450, 600, 0]

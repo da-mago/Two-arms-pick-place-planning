@@ -577,6 +577,13 @@ class env_pickplace:
         joint_a = self._ext2intAction(action)
         for i,(a, pos, pick_pos) in enumerate(zip(joint_a, self.armsGridPos, self.pickPos)):
 
+            # ONLY_LEFT_ARM: uncomment
+            #if i==1:
+            #    if a == 4 or a == 5:
+            #       #force left arm not to move
+            #       valid_state = False
+            #       break
+
             # move (right/left/down/up)
             if a < 4:
                 if pick_pos > 0:

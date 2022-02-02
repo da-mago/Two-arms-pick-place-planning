@@ -116,6 +116,7 @@ class mdp_generator(env_pickplace):
         # Note: suffix "_1" and "_2" refers to fix-arm and other-arm respectively.
         # 
         # Fix-arm can be the first or the second arm
+        # ONLY_LEFT_ARM: run only arm==0
         for arm in range(2):
             # Fix-arm configuration: pos, pick_pos and  (status is derived from pices bitmap)
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
