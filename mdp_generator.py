@@ -73,7 +73,8 @@ class mdp_generator(env_pickplace):
         for i,s in enumerate(valid_states):
             for a in range(self.nA):
                self.reset(s)
-               next_state, reward, done, info = self._step(a, mode=1)
+               #next_state, reward, done, info = self._step(a, mode=1)
+               next_state, reward, done, info = self._step(a, mode=0)
                mdp_s[i][a] = states_idx[next_state]
                mdp_r[i][a] = reward
             if (i % (valid_nS//10)) == 0:
@@ -117,8 +118,35 @@ class mdp_generator(env_pickplace):
         # 
         # Fix-arm can be the first or the second arm
         # ONLY_LEFT_ARM: run only arm==0
+
+        # For one arm (arm1 or arm2) being on any of the init or end pieces position, iterate over
+        # the rest of state combinations. Recall the MDP state formula:
+        #
+        # Total_states = ((M*N + K*P)^2) * ((K+1)^2) * 2^K
+        #
+        #     Grid size: M*N   --------------\ Hence the (M*N + K*P)^2
+        #     Extra pick/frop steps: K*P ----/
+        #     Arm status: 0-K (0: empty arm, 1-K: arm carrying piece Ki) -> Hence the (K+1)^2
+        #     Piece status: 0 (piece processed) or (piece not processed) -> Hence the 2^K
+        #
+        # For this arm, iterates over all pick/drop extra steps, and pick/drop
+        # decision is based on the pieces status (bitmap).
+        #
+        # For the other arm (arm2 or arm1), and pieces state vars, try all combinations
+        #
+        # Then for each of the previous valid states (not all of them, only the
+        # valida ones), iterate ovar all possible actions in the 'other arm'.
+        # The resulting state for the taken action is also validated,
+        # 
+        # There is an extra check for the initial state: was marked when the
+        # model was generatedr? Otherwise, it will ignore it.
+        #
+        # For all that remaining valid scenarios, it will compute the
+        # appropriate next state and reward, since at this point the pieces init
+        # and end location is known.
+        #
         for arm in range(2):
-            # Fix-arm configuration: pos, pick_pos and  (status is derived from pices bitmap)
+            # Fix-arm configuration: pos, pick_pos and  (status is derived from pieces bitmap)
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
                 for tmp_pick_pos_1 in range(self.P+1):
                     # Other-arm configuration: pos, pick_pos  and status

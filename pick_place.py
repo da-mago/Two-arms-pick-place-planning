@@ -262,7 +262,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     #print('pieces_pos = {}'.format(pieces))
 
     #print(" # Plan based on EE locations (instead of joints)")
-    #print(src)
+    print(src)
     
     return arms_pos, num_steps, src
 
@@ -422,27 +422,27 @@ if __name__ == "__main__":
                    'end'   : [ 150, 600, 0],
                   }
                   ]
-        # Only two pieces
-        # 1-2 (then 3-4)  27 + 28 = 56
-        # 1-3 (then 2-4)  27 + 22 = 49
-        # 1-4 (then 2-3)  22 + 24 = 46
-        # 2-3 (then 1-4)  23 + 24 = 47
-        # 2-4 (then 1-3)  21 + 26 = 47
-        # 3-4 (then 1-2)  27 + 26 = 53
-        pieces = [
-                  {'start' : [-250, 300, 0],  # Piece 1
-                   'end'   : [ 250, 500, 0],
-                  },                     
-                  #{'start' : [-250, 500, 0],  # Piece 2
-                  # 'end'   : [ 350, 200, 0],
-                  #},                     
-                  {'start' : [-350, 300, 0],  # Piece 3
-                   'end'   : [ 150, 500, 0],
-                  },                     
-                  #{'start' : [-150, 300, 0],  # Piece 4
-                  # 'end'   : [ 150, 600, 0],
-                  #}
-                  ]
+        ## Only two pieces
+        ## 1-2 (then 3-4)  27 + 28 = 56
+        ## 1-3 (then 2-4)  27 + 22 = 49
+        ## 1-4 (then 2-3)  22 + 24 = 46
+        ## 2-3 (then 1-4)  23 + 24 = 47
+        ## 2-4 (then 1-3)  21 + 26 = 47
+        ## 3-4 (then 1-2)  27 + 26 = 53
+        #pieces = [
+        #          {'start' : [-250, 300, 0],  # Piece 1
+        #           'end'   : [ 250, 500, 0],
+        #          },                     
+        #          #{'start' : [-250, 500, 0],  # Piece 2
+        #          # 'end'   : [ 350, 200, 0],
+        #          #},                     
+        #          {'start' : [-350, 300, 0],  # Piece 3
+        #           'end'   : [ 150, 500, 0],
+        #          },                     
+        #          #{'start' : [-150, 300, 0],  # Piece 4
+        #          # 'end'   : [ 150, 600, 0],
+        #          #}
+        #          ]
 
         #    # Debug: Fixed arms position
         #    #    500 50      600 -250    left, right
@@ -509,7 +509,7 @@ if __name__ == "__main__":
                 pieces_str = pieces if i==0 else "IDEM"
                 print(robot_mdp.piecesLocation)
                 print("DATA: ", armsGridPos, ";", pieces_str, ";", num_steps)
-                generateTxtPlan(policy, armsGridPos, pieces)
+                generateTxtPlan(policy, armsGridPos, pieces, robot_mdp)
                 #import sys
                 #sys.exit()
             #except:
