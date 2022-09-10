@@ -73,8 +73,7 @@ class mdp_generator(env_pickplace):
         for i,s in enumerate(valid_states):
             for a in range(self.nA):
                self.reset(s)
-               #next_state, reward, done, info = self._step(a, mode=1)
-               next_state, reward, done, info = self._step(a, mode=0)
+               next_state, reward, done, info = self._step(a, mode=1)
                mdp_s[i][a] = states_idx[next_state]
                mdp_r[i][a] = reward
             if (i % (valid_nS//10)) == 0:
@@ -130,7 +129,7 @@ class mdp_generator(env_pickplace):
         #     Piece status: 0 (piece processed) or (piece not processed) -> Hence the 2^K
         #
         # For this arm, iterates over all pick/drop extra steps, and pick/drop
-        # decision is based on the pieces status (bitmap).
+        # decision is based on the pieces status.
         #
         # For the other arm (arm2 or arm1), and pieces state vars, try all combinations
         #
@@ -146,14 +145,22 @@ class mdp_generator(env_pickplace):
         # and end location is known.
         #
         for arm in range(2):
-            # Fix-arm configuration: pos, pick_pos and  (status is derived from pieces bitmap)
+            # Fix-arm configuration: pos, pick_pos and  (status is derived from pieces status)
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
                 for tmp_pick_pos_1 in range(self.P+1):
                     # Other-arm configuration: pos, pick_pos  and status
                     for xyp in range(self.M*self.N + self.K*self.P):
                         for status_2 in range(self.K+1):
-                            # Arm independent configuration: pieces bitmap
-                            for bitmap in range(2**(self.K)):
+                            # Arm independent configuration: pieces status
+                            for ps in range((2+self.T)**self.K):
+
+                                # Convert scalar to list per piece
+                                pieces_status = []
+                                for _ in range(self.K):
+                                    tmp = ps % (2 + self.T)
+                                    ps = (ps - tmp) // (2 + self.T)
+                                    pieces_status.insert(0, tmp)
+                                next_pieces_status = pieces_status[:]
 
                                 # Other-arm
                                 if xyp < self.M*self.N:
@@ -168,25 +175,28 @@ class mdp_generator(env_pickplace):
                                 # Fix-arm
                                 # (Using a temporal var because if I modify the loop var, memory is overwritten)
                                 pick_pos_1 = tmp_pick_pos_1
-                                if bitmap & (1<<i):
+                                if pieces_status[i] > 1:
+                                    #TODO not clear at all this comment
+                                    # Not updating intermediate positions (they
+                                    # are known from the beginning)
+                                    continue
+                                elif pieces_status[i] > 0:
                                     # pick
                                     pos = pos_ini
                                     status = 0
                                     if pick_pos_1 >= self.P or debug==True:
                                         next_pick_pos_1 = 0
                                         next_status = i+1
-                                        tmp_bitmap = bitmap & ~(1<<i)
+                                        next_pieces_status[i] = 0
                                     else:
                                         next_pick_pos_1 = pick_pos_1 + 1 + self.P*i # Range 0..K*P
                                         next_status = status
-                                        tmp_bitmap = bitmap
                                     a = 4
                                     # place
                                 else:
                                     # drop
                                     pos = pos_end
                                     status = i+1
-                                    tmp_bitmap = bitmap
                                     if pick_pos_1 >= self.P or debug==True:
                                         next_status = 0
                                         next_pick_pos_1 = 0
@@ -200,10 +210,11 @@ class mdp_generator(env_pickplace):
                                     pick_pos_1 += self.P*i # Range 0..K*P
 
                                 if arm == 0:
-                                    state = self._int2extState([pos, [x,y]], [status, status_2], bitmap, [pick_pos_1, pick_pos_2])
+                                    state = self._int2extState([pos, [x,y]], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
                                 else:
-                                    state = self._int2extState([[x,y], pos], [status_2, status], bitmap, [pick_pos_2, pick_pos_1])
+                                    state = self._int2extState([[x,y], pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
     
+                                # remind that pieces_status list was previously an scalar bitmap var
                                 #if pos == [0,3] and [x,y] == [8,2] and status==0 and status_2==0 and bitmap==15 and pick_pos_1 ==0 and pick_pos_2 == 0:
                                 #if pos == [0,3] and [x,y] == [8,2] and status==0 and status_2==0 and bitmap==15 and pick_pos_1 ==2 and pick_pos_2 == 0:
                                 #if pos == [1,4] and status_2==1 and bitmap==8 and pick_pos_2 == 1:
@@ -224,7 +235,6 @@ class mdp_generator(env_pickplace):
                                         #if a2==4 or a2==5:
                                         #   continue
 
-                                        next_bitmap = tmp_bitmap
                                         if self.MDP[1][idx][a1*7+a2] == -30: # pick/any
                                             # Using _step() implementation (slower then code here after continue)
                                             #self.reset(state)
@@ -267,11 +277,15 @@ class mdp_generator(env_pickplace):
                                                             else:
                                                                 continue
                                                         
-                                                        if bitmap & (1 << p_idx):
+                                                        #TDOOO no tengo nada claro que hacer si esto vale 2 pero no es un pick or un drop
+                                                        if pieces_status[p_idx] > 1:
+                                                            # extra intermediate positions already done
+                                                            continue
+                                                        elif pieces_status[p_idx] > 0:
                                                             if pick_pos_2 >= self.P or debug==True: # Range 0..P
                                                                 next_pick_pos_2 == 0
                                                                 next_status_2 = p_idx+1
-                                                                next_bitmap &= ~(1<<p_idx)
+                                                                next_pieces_status[p_idx] = 0
                                                             else:
                                                                 next_pick_pos_2 += 1 # Range 0..K*P
                                                         else:
@@ -292,7 +306,9 @@ class mdp_generator(env_pickplace):
                                                             else:
                                                                 continue
                                                         
-                                                        if (bitmap & (1 << p_idx)) == 0 and status_2 == (p_idx+1):
+                                                        if pieces_status[p_idx] > 1:
+                                                            continue
+                                                        elif (pieces_status[p_idx] > 0) and (status_2 == (p_idx+1)):
                                                             if pick_pos_2 >= self.P or debug==True:
                                                                 next_pick_pos_2 == 0
                                                                 next_status_2 = 0
@@ -310,28 +326,28 @@ class mdp_generator(env_pickplace):
                                             #print(pos)
                                             #print(self._ext2intState(state))
                                             if arm == 0:
-                                                next_arms_grid_pos, next_arms_status, next_pieces_map, next_pick_pos = [pos,pos2], [next_status,next_status_2], next_bitmap, [next_pick_pos_1, next_pick_pos_2]
+                                                next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2]
                                             else:
-                                                next_arms_grid_pos, next_arms_status, next_pieces_map, next_pick_pos = [pos2,pos], [next_status_2,next_status], next_bitmap, [next_pick_pos_2, next_pick_pos_1]
+                                                next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1]
                                             if self.robot.checkValidLocation(next_arms_grid_pos) == False:
                                                 continue
                                             if self.robot.checkCollision(next_arms_grid_pos) == True:
                                                 continue
-                                            if self._isPiecesStatusValid(next_arms_status, next_pieces_map, next_pick_pos) == False:
+                                            if self._isPiecesStatusValid(next_arms_status, next_pieces_status, next_pick_pos) == False:
                                                 continue
 
                                             # update next_state and reward
-                                            if arm == 0: state = self._int2extState([pos,pos2], [next_status,next_status_2], next_bitmap, [next_pick_pos_1, next_pick_pos_2])
-                                            else:        state = self._int2extState([pos2,pos], [next_status_2,next_status], next_bitmap, [next_pick_pos_2, next_pick_pos_1])
+                                            if arm == 0: state = self._int2extState([pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2])
+                                            else:        state = self._int2extState([pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1])
                                             #print(pick_pos, next_pick_pos)
 
                                             # Check if the new state is valid
                                             if state not in states_idx:
                                                 continue
 
-                                            if next_bitmap + np.sum([next_status, next_status_2]) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
-                                            elif action == 6:                                           reward = -1 # 1 arm
-                                            else:                                                       reward = -1 # 2 arms
+                                            if (np.sum(next_pieces_status) + np.sum([next_status, next_status_2])) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
+                                            elif action == 6:                                                            reward = -1 # 1 arm
+                                            else:                                                                        reward = -1 # 2 arms
 
                                             #print(self._ext2intState(state))
                                             self.MDP[0][idx][a1*7+a2] = states_idx[state]

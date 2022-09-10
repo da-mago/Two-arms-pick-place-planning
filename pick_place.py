@@ -18,7 +18,8 @@ def showSolution(policy, initial_pos, GIF_filename=None):
     ''' Show pick & place solution '''
     global num_steps
 
-    init_state = robot_mdp._int2extState(initial_pos, [0,0], 15, [0,0])
+    pieces_status = [1 for _ in range(robot.K)]
+    init_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
     next_state = init_state
     robot_mdp.reset(next_state)
     images = []
@@ -45,9 +46,9 @@ def showSolution(policy, initial_pos, GIF_filename=None):
         # Show plan actions
         #print(i, robot_mdp._ext2intAction(action))
         #print(i, robot_mdp._ext2intState(next_state))
-        pos,status,pieces_map,pick_pos = robot_mdp._ext2intState(next_state)
+        pos, status, pieces_status, pick_pos = robot_mdp._ext2intState(next_state)
         joint_a = robot_mdp._ext2intAction(action)
-        print(joint_a, pos, ',', status, ',', pieces_map, ',', pick_pos, i)
+        print(joint_a, pos, ',', status, ',', pieces_status, ',', pick_pos, i)
         for arm_idx in range(1,-1,-1):
             idx = robot_mdp._xy2idx(pos[arm_idx])
             x,y,_       = robot_mdp.robot.location[idx]
@@ -86,7 +87,8 @@ def generatePythonPlan(policy, initial_pos, pieces):
     src += 'robot_plan = [\n'
     src += '#   Configuration                                                                                                                               Actions  -  Grid location  -  Location\n'
 
-    next_state = robot_mdp._int2extState(initial_pos, [0,0], 15, [0,0])
+    pieces_status = [1 for _ in range(robot.K)]
+    next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
     robot_mdp.reset(next_state)
     done = False
     while done == False:
@@ -133,8 +135,8 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     robot = robot_mdp.robot
 
     num_steps = 0
-    bitmap_init = (2**len(pieces)) - 1
-    init_state = robot_mdp._int2extState(initial_pos, [0,0], bitmap_init, [0,0])
+    pieces_status = [1 for _ in range(robot_mdp.K)]
+    init_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
     next_state = init_state
     robot_mdp.reset(next_state)
 
