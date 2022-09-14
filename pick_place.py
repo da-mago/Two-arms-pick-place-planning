@@ -161,6 +161,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
         num_steps += 1
         action = policy[ robot_mdp.MDP[3][next_state] ]
         #print(robot_mdp._ext2intAction(action))
+        previous_next_state = next_state
         next_state, reward, done, info = robot_mdp._step(action)
         #state_rd   = robot_mdp.MDP[3][next_state]
         #next_state, reward, done, info = mdp_step(state_rd, action)
@@ -219,8 +220,9 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
         #    src += '{} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
         #print('a')
 
-        for ang,pos,z_p,grip_info,grip in zip(reversed(arms_config), reversed(arms_loc), reversed(z_plane), reversed(gripper_action), reversed(gripper)):
+        for i,(ang, pos, z_p, grip_info, grip, a) in enumerate(zip(reversed(arms_config), reversed(arms_loc), reversed(z_plane), reversed(gripper_action), reversed(gripper), reversed(joint_a))):
             # Format:  ANGLES, grip state
+            #if i==0: continue
             src += ','.join([str(x) for x in ang]) 
             src += ',{}'.format(grip) 
             # Add comment
@@ -232,14 +234,18 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
                 x,y,_ = pos
                 z     = Z_GRIPPER[z_p]
                 src += ' # {} {} {}'.format(y,-x,z) # Axis conversion for RobotStudio
+                extra_src = ' (Arm {} - {}) STATE {}\n'.format(i, "PICK" if a==4 else "DROP", previous_next_state)
                 if grip_info == GRIPPER_UP:
                     src += " GRIPPER UP"
+                    src += extra_src
                 elif grip_info == GRIPPER_DOWN:
                     src += " GRIPPER DOWN"
-                src += '\n'
+                    src += extra_src
+                else:
+                    src +='\n'
        # print('b')
 
-    #print('NUM_STEPS ', num_steps)
+    print('NUM_STEPS ', num_steps)
     
     #print('\n')
     #print('###############################################')
@@ -484,7 +490,7 @@ if __name__ == "__main__":
             robot_mdp = mdp_generator(robot, pieces)
             algorithm_time = time.time()
             robot_mdp.update()
-            print("MDP UPDATED")
+            print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
 
             # Solve MDP
             solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])

@@ -71,7 +71,12 @@ class mdp_generator(env_pickplace):
         mdp_v = np.array(valid_states)
         mdp_i = {x:i for i,x in enumerate(mdp_v)}
         for i,s in enumerate(valid_states):
+            #if s>0000:
+            #    print(s)
             for a in range(self.nA):
+               #if s>0000:
+               #    joint_a = self._ext2intAction(a)
+               #    print(joint_a)
                self.reset(s)
                next_state, reward, done, info = self._step(a, mode=1)
                mdp_s[i][a] = states_idx[next_state]
@@ -107,7 +112,9 @@ class mdp_generator(env_pickplace):
         print(p_ini, p_end)
         states_idx = self.MDP[3]
 
+        counter = 0
 
+        #TODO Remove this debug stuff
         debug = False # Bypass pick_pos states
         
         # This loop iterates over all states where at least one arm (called 
@@ -121,7 +128,10 @@ class mdp_generator(env_pickplace):
         # For one arm (arm1 or arm2) being on any of the init or end pieces position, iterate over
         # the rest of state combinations. Recall the MDP state formula:
         #
-        # Total_states = ((M*N + K*P)^2) * ((K+1)^2) * 2^K
+        # Total_states = (M*N + K*P)^2 * (K+1)^2 * (2+T)^K
+        #              ____/      |          |         |
+        #             /           |          |         |
+        #       armsGridPos    pickPos   armsStatus   piecesStatus
         #
         #     Grid size: M*N   --------------\ Hence the (M*N + K*P)^2
         #     Extra pick/frop steps: K*P ----/
@@ -144,214 +154,221 @@ class mdp_generator(env_pickplace):
         # appropriate next state and reward, since at this point the pieces init
         # and end location is known.
         #
+        # Fix-arm being left or right
         for arm in range(2):
-            # Fix-arm configuration: pos, pick_pos and  (status is derived from pieces status)
+            # Fix-arm state vars loop (only at pieces ini/end positions)
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
-                for tmp_pick_pos_1 in range(self.P+1):
-                    # Other-arm configuration: pos, pick_pos  and status
-                    for xyp in range(self.M*self.N + self.K*self.P):
+                for tmp_pp_1 in range(self.P+1):
+                    # Other-arm state vars loop (at any position)
+                    for xyp_2 in range(self.M*self.N + self.K*self.P):
                         for status_2 in range(self.K+1):
-                            # Arm independent configuration: pieces status
+                            # Pieces state vars loop
                             for ps in range((2+self.T)**self.K):
-
-                                # Convert scalar to list per piece
+    
+                                # Piece status (from scalar to list)
                                 pieces_status = []
                                 for _ in range(self.K):
                                     tmp = ps % (2 + self.T)
                                     ps = (ps - tmp) // (2 + self.T)
                                     pieces_status.insert(0, tmp)
-                                next_pieces_status = pieces_status[:]
-
-                                # Other-arm
-                                if xyp < self.M*self.N:
-                                    x = xyp%self.M
-                                    y = xyp//self.M
-                                    pick_pos_2 = 0
-                                else:
-                                    x = -1
-                                    y = -1
-                                    pick_pos_2 = xyp+1 - self.M*self.N
-                                
+    
                                 # Fix-arm
-                                # (Using a temporal var because if I modify the loop var, memory is overwritten)
-                                pick_pos_1 = tmp_pick_pos_1
-                                if pieces_status[i] > 1:
-                                    #TODO not clear at all this comment
-                                    # Not updating intermediate positions (they
-                                    # are known from the beginning)
-                                    continue
-                                elif pieces_status[i] > 0:
-                                    # pick
+                                reduced_pp_1 = tmp_pp_1
+                                if reduced_pp_1 > 0: pick_pos_1 += i * self.P # Range 0..K*P
+                                else:                pick_pos_1 = 0
+                                if pieces_status[i] == 1:
                                     pos = pos_ini
                                     status = 0
-                                    if pick_pos_1 >= self.P or debug==True:
-                                        next_pick_pos_1 = 0
-                                        next_status = i+1
-                                        next_pieces_status[i] = 0
-                                    else:
-                                        next_pick_pos_1 = pick_pos_1 + 1 + self.P*i # Range 0..K*P
-                                        next_status = status
-                                    a = 4
-                                    # place
-                                else:
-                                    # drop
+                                elif pieces_status[i] == 0:
                                     pos = pos_end
                                     status = i+1
-                                    if pick_pos_1 >= self.P or debug==True:
-                                        next_status = 0
-                                        next_pick_pos_1 = 0
-                                    else:
-                                        next_status = status
-                                        next_pick_pos_1 = pick_pos_1 + 1 + self.P*i # Range 0..K*P
-                                    a = 5
-                                    
-                                # Change range from 0..P to 0..K*P
-                                if pick_pos_1 > 0:
-                                    pick_pos_1 += self.P*i # Range 0..K*P
-
-                                if arm == 0:
-                                    state = self._int2extState([pos, [x,y]], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
                                 else:
-                                    state = self._int2extState([[x,y], pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
+                                    # Not updating intermediate positions for Fix-arm
+                                    continue
     
-                                # remind that pieces_status list was previously an scalar bitmap var
-                                #if pos == [0,3] and [x,y] == [8,2] and status==0 and status_2==0 and bitmap==15 and pick_pos_1 ==0 and pick_pos_2 == 0:
-                                #if pos == [0,3] and [x,y] == [8,2] and status==0 and status_2==0 and bitmap==15 and pick_pos_1 ==2 and pick_pos_2 == 0:
-                                #if pos == [1,4] and status_2==1 and bitmap==8 and pick_pos_2 == 1:
-                                #print(pos, self._ext2intState(state))
-                                # Process only valid states
-                                if state in states_idx:
+                                # Other-arm
+                                if xyp_2 < (self.M * self.N):
+                                    pos_2 = [xyp_2 % self.M, xyp_2 // self.M]
+                                    pick_pos_2 = 0
+                                else:
+                                    pos_2 = [-1, -1]
+                                    pick_pos_2 = xyp_2 + 1 - (self.M * self.N)
+    
+                                # Get internal scalar state representation (from internal state vars)
+                                if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
+                                else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
+    
+                                # Check valid state
+                                if state not in states_idx:
+                                    continue
+    
+                                # Get MDP scalar state from internal scalar state
+                                idx = states_idx[state]
+    
+                                # Taking action in Fix-arm
+                                next_pieces_status = pieces_status[:]
+    
+                                USE_IMPLEMENTED_STEP_FUNCTION = 1
+    
+                                if USE_IMPLEMENTED_STEP_FUNCTION == 0:
+                                    if status == 0:
+                                        # Pick
+                                        a = 4
+                                        #TODO este trozo probablemente habra que borrarlo si pick_pos_1 es 0 siempre
+                                        if reduced_pp_1 >= self.P or debug==True:
+                                            next_pick_pos_1 = 0
+                                            next_status = i+1
+                                            next_pieces_status[i] = 0
+                                        else:
+                                            next_pick_pos_1 = reduced_pp_1 + 1 + self.P*i # Range 0..K*P
+                                            next_status = status
+                                    else:
+                                        # Drop
+                                        a = 5
+                                        #TODO este trozo probablemente habra que borrarlo si pick_pos_1 es 0 siempre
+                                        if reduced_pp_1 >= self.P or debug==True:
+                                            next_status = 0
+                                            next_pick_pos_1 = 0
+                                        else:
+                                            next_status = status
+                                            next_pick_pos_1 = reduced_pp_1 + 1 + self.P*i # Range 0..K*P
                                     
-                                    tmp_pick_pos_2 = pick_pos_2
-                                    idx = states_idx[state]
-                                    # Avoid checks (it was done in phase 1, -30 means all checks were passed)
-                                    for action in range(7):
-                                        #print(action)
-                                        if arm == 0: a1 = a;      a2 = action;
-                                        else:        a1 = action; a2 = a;
-
-
-                                        # Emulate robot with single arm (the other arm ca not pick/drop)
-                                        #if a2==4 or a2==5:
-                                        #   continue
-
-                                        if self.MDP[1][idx][a1*7+a2] == -30: # pick/any
-                                            # Using _step() implementation (slower then code here after continue)
-                                            #self.reset(state)
-                                            #next_state, reward, _, _ = self._step(a1*7+a2)
-                                            #self.MDP[0][idx][a1*7+a2] = states_idx[next_state]
-                                            #self.MDP[1][idx][a1*7+a2] = reward
-                                            #continue
-
-                                            # remove mark
-                                            self.MDP[1][idx][a1*7+a2] = -19
+                                # Taking action
+                                a = 4 if status == 0 else 5 # Fix-arm action
     
-                                            next_status_2   = status_2
-                                            pick_pos_2      = tmp_pick_pos_2 # Range 0..K*P
-                                            next_pick_pos_2 = pick_pos_2
-
-                                            # Move from 0..K*P to 0..P range
-                                            if pick_pos_2 > 0:
-                                                pick_pos_2 = ((pick_pos_2-1) % self.P) + 1 # Range 0..P
-
-                                            if action < 4: 
-                                                if pick_pos_2 > 0:
-                                                    # only pick/drop actions are valid
-                                                    continue
-
-                                                pos2 = list([x,y] + offset_a[action])
-                                                if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N:
-                                                    continue
-                                            else:
-                                                pos2 = [x,y]
-                                                if action == 4:
-                                                    if (status_2 == 0):
-                                                        # Get the piece index
-                                                        if pick_pos_2 > 0:
-                                                            # Derive piece index from pick_pos value (x,y has no meaning)
-                                                            p_idx = (next_pick_pos_2-1)//self.P
-                                                        else:
-                                                            # Derive piece index from location
-                                                            if ([x,y] in p_ini):
-                                                                p_idx = p_ini.index([x,y])
-                                                            else:
-                                                                continue
-                                                        
-                                                        #TDOOO no tengo nada claro que hacer si esto vale 2 pero no es un pick or un drop
-                                                        if pieces_status[p_idx] > 1:
-                                                            # extra intermediate positions already done
-                                                            continue
-                                                        elif pieces_status[p_idx] > 0:
-                                                            if pick_pos_2 >= self.P or debug==True: # Range 0..P
-                                                                next_pick_pos_2 == 0
-                                                                next_status_2 = p_idx+1
-                                                                next_pieces_status[p_idx] = 0
-                                                            else:
-                                                                next_pick_pos_2 += 1 # Range 0..K*P
-                                                        else:
-                                                            continue
-                                                    else:
-                                                        continue
-
-                                                elif action == 5:
-                                                    if (status_2 > 0):
-                                                        # Get the piece index
-                                                        if pick_pos_2 > 0:
-                                                            # Derive piece index from pick_pos value (x,y has no meaning)
-                                                            p_idx = (next_pick_pos_2-1)//self.P
-                                                        else:
-                                                            # Derive piece index from location
-                                                            if ([x,y] in p_end):
-                                                                p_idx = p_end.index([x,y])
-                                                            else:
-                                                                continue
-                                                        
-                                                        if pieces_status[p_idx] > 1:
-                                                            continue
-                                                        elif (pieces_status[p_idx] > 0) and (status_2 == (p_idx+1)):
-                                                            if pick_pos_2 >= self.P or debug==True:
-                                                                next_pick_pos_2 == 0
-                                                                next_status_2 = 0
-                                                            else:
-                                                                next_pick_pos_2 += 1
-                                                        else:
-                                                            continue
-                                                    else:
-                                                        continue
+                                for a_2 in range(self.single_nA): # Other_arm action
     
+                                    if arm == 0: joint_a = [a, a_2]
+                                    else:        joint_a = [a_2, a]
+    
+                                    action = self._int2extAction(joint_a)
+    
+                                    if self.MDP[1][idx][action] != -30:
+                                        # Not marked to be updated
+                                        continue
+    
+                                    if USE_IMPLEMENTED_STEP_FUNCTION:
+                                        # Using _step() implementation (slower then code here after continue)
+                                        self.reset(state)
+                                        next_state, reward, _, _ = self._step(action)
+                                        #print(state, action)
+                                        self.MDP[0][idx][action] = states_idx[next_state]
+                                        self.MDP[1][idx][action] = reward
+                                        counter += 1
+                                        # Done
+                                        continue
+    
+                                    # remove mark
+                                    self.MDP[1][idx][action] = -19
+    
+                                    next_status_2   = status_2
+                                    next_pick_pos_2 = pick_pos_2
+    
+                                    # Move from 0..K*P to 0..P range
+                                    if pick_pos_2 > 0: reduced_pp_2 = ((pick_pos_2 - 1) % self.P) + 1 # Range 0..P
+                                    else:              reduced_pp_2 = 0
+    
+                                    if a_2 < 4: 
+                                        if reduced_pp_2 > 0:
+                                            # only pick/drop actions are valid
+                                            continue
+    
+                                        pos2 = list(pos_2 + offset_a[a_2])
+                                        # TODO cambiar esto por funcion existetne que ya lo chequea
+                                        if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N:
+                                            continue
+                                    else:
+                                        pos2 = pos_2
+                                        if a_2 == 4:
+                                            if (status_2 == 0):
+                                                # Get the piece index
+                                                if reduced_pp_2 > 0:
+                                                    # Derive piece index from pick_pos value (pos_2 has no meaning)
+                                                    p_idx = (next_pick_pos_2 - 1) // self.P
                                                 else:
-                                                    if pick_pos_2 > 0:
+                                                    # Derive piece index from location
+                                                    if (pos_2 in p_ini):
+                                                        p_idx = p_ini.index(pos_2)
+                                                    else:
                                                         continue
-                                            #print("AA ", arm, a1, a2)
-                                            #print(pos)
-                                            #print(self._ext2intState(state))
-                                            if arm == 0:
-                                                next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2]
+                                                
+                                                #TDOOO no tengo nada claro que hacer si esto vale 2 pero no es un pick or un drop
+                                                if pieces_status[p_idx] > 1:
+                                                    # extra intermediate positions already done
+                                                    continue
+                                                elif pieces_status[p_idx] > 0:
+                                                    if reduced_pp_2 >= self.P or debug==True: # Range 0..P
+                                                        next_pick_pos_2 == 0
+                                                        next_status_2 = p_idx+1
+                                                        next_pieces_status[p_idx] = 0
+                                                    else:
+                                                        next_pick_pos_2 += 1 # Range 0..K*P
+                                                else:
+                                                    continue
                                             else:
-                                                next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1]
-                                            if self.robot.checkValidLocation(next_arms_grid_pos) == False:
                                                 continue
-                                            if self.robot.checkCollision(next_arms_grid_pos) == True:
+    
+                                        elif a_2 == 5:
+                                            if (status_2 > 0):
+                                                # Get the piece index
+                                                if reduced_pp_2 > 0:
+                                                    # Derive piece index from pick_pos value (pos_2 has no meaning)
+                                                    p_idx = (next_pick_pos_2-1)//self.P
+                                                else:
+                                                    # Derive piece index from location
+                                                    if (pos_2 in p_end):
+                                                        p_idx = p_end.index(pos_2)
+                                                    else:
+                                                        continue
+                                                
+                                                if pieces_status[p_idx] > 1:
+                                                    continue
+                                                elif (pieces_status[p_idx] > 0) and (status_2 == (p_idx+1)):
+                                                    if reduced_pp_2 >= self.P or debug==True:
+                                                        next_pick_pos_2 == 0
+                                                        next_status_2 = 0
+                                                    else:
+                                                        next_pick_pos_2 += 1
+                                                else:
+                                                    continue
+                                            else:
                                                 continue
-                                            if self._isPiecesStatusValid(next_arms_status, next_pieces_status, next_pick_pos) == False:
+    
+                                        else:
+                                            if reduced_pp_2 > 0:
                                                 continue
-
-                                            # update next_state and reward
-                                            if arm == 0: state = self._int2extState([pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2])
-                                            else:        state = self._int2extState([pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1])
-                                            #print(pick_pos, next_pick_pos)
-
-                                            # Check if the new state is valid
-                                            if state not in states_idx:
-                                                continue
-
-                                            if (np.sum(next_pieces_status) + np.sum([next_status, next_status_2])) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
-                                            elif action == 6:                                                            reward = -1 # 1 arm
-                                            else:                                                                        reward = -1 # 2 arms
-
-                                            #print(self._ext2intState(state))
-                                            self.MDP[0][idx][a1*7+a2] = states_idx[state]
-                                            self.MDP[1][idx][a1*7+a2] = reward
+                                    #print("AA ", arm, joint_a)
+                                    #print(pos)
+                                    #print(self._ext2intState(state))
+                                    if arm == 0:
+                                        next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2]
+                                    else:
+                                        next_arms_grid_pos, next_arms_status, next_pieces_status, next_pick_pos = [pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1]
+                                    if self.robot.checkValidLocation(next_arms_grid_pos) == False:
+                                        continue
+                                    if self.robot.checkCollision(next_arms_grid_pos) == True:
+                                        continue
+                                    if self._isPiecesStatusValid(next_arms_status, next_pieces_status, next_pick_pos) == False:
+                                        continue
+    
+                                    # update next_state and reward
+                                    if arm == 0: state = self._int2extState([pos,pos2], [next_status,next_status_2], next_pieces_status, [next_pick_pos_1, next_pick_pos_2])
+                                    else:        state = self._int2extState([pos2,pos], [next_status_2,next_status], next_pieces_status, [next_pick_pos_2, next_pick_pos_1])
+                                    #print(pick_pos, next_pick_pos)
+    
+                                    # Check if the new state is valid
+                                    if state not in states_idx:
+                                        continue
+    
+                                    if (np.sum(next_pieces_status) + np.sum([next_status, next_status_2])) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
+                                    elif a_2 == 6:                                                               reward = -1 # 1 arm
+                                    else:                                                                        reward = -1 # 2 arms
+    
+                                    #print(self._ext2intState(state))
+                                    counter += 1  
+                                    self.MDP[0][idx][action] = states_idx[state]
+                                    self.MDP[1][idx][action] = reward
+        print("COUNTER {}\n".format(counter))
 
 if __name__ == "__main__":
 

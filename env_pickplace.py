@@ -1,3 +1,4 @@
+# pick_pos>0 y pieces_status == 0 no es valid
 import time
 import random
 import numpy as np
@@ -133,7 +134,7 @@ class env_pickplace:
         #
         self.M, self.N = self.robot.M, self.robot.N
         self.K = len(self.piecesCfg)
-        self.T = 0 # Number of available intermediate positions
+        self.T = 1 # Number of available intermediate positions (limited up to 1 by current implementation)
         self.P = 0 # Number of ´extra´ states representing the pick up or drop off operation
                    #  P = 0      2      4
                    #     .->.   .  .   .  .
@@ -145,11 +146,11 @@ class env_pickplace:
         self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickStatus = self._getDefaultResetState()
 
         # Extra intermediate position
-        self.T_pos = [100,100] # arbitrary value (it should be a valid position for both arms)
+        self.T_pos = [3, 3] # arbitrary value (it should be a valid position for both arms)
  
         # State space size
         # Note: instead fo M*N*P (3D), we extend Z axis only for K cells (where piece can be picked or dropeed). This is just to reduce memory resources. In the end we would end up filtering out those cells where you can not pick/drop a piece
-        self.nS = ((self.M*self.N + (self.K * self.P))**2) * ((2+self.T)**self.K) * ((self.K+1)**2)
+        self.nS = (((self.M * self.N) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
 
         # Action space size: 
         self.single_nA = 7
@@ -193,9 +194,6 @@ class env_pickplace:
         # Open AI gym-style stuff)
         self.action_space      = self.ActionSpace(self.nA)
         self.observation_space = self.ObservationSpace(self.nS)
-        
-        # Speed-up helpers
-        self.piecesStatusValid = {}
 
 
     #############################################################
@@ -208,6 +206,33 @@ class env_pickplace:
 
     def _getExtState(self):
         return self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+
+    def _deriveXYfromState(self, armStatus, piecesStatus, pickPos):
+        ''' XY arm pos and pickPos info are combined in the MDP: (M*N + K*P), so
+            when P>0, XY info is not encoded and need to be derived from the other
+            MDP state vars '''
+
+        if armStatus > 0:
+            piece = armStatus - 1
+        elif pickPos > 0:
+            piece = (pickPos - 1) // self.P
+        else:
+        #    assert False, 'Really? armsStatus is 0'
+            # Impossible to get the info
+            return [-1,-1]
+
+        pStatus = piecesStatus[piece]
+        if pStatus == 0:   # end
+            x,y = self.piecesLocation['end'][piece]
+        elif pStatus == 1: # init
+            x,y = self.piecesLocation['start'][piece]
+        elif pStatus == 2: # intermediate 1
+            x,y = self.T_pos
+        else:              # unexpected
+        #    assert False, 'Really? unknonw piece Status'
+            x,y = -1,-1
+
+        return [x,y]
 
     def _int2extState(self, armsPos, armsStatus, piecesStatus, pickPos):
         ''' convert internal state representation to a single scalar '''
@@ -254,12 +279,13 @@ class env_pickplace:
 
         arms_pos = [] 
         pick_pos = []
-        for _ in self.armsGridPos:
+        for arm_st in reversed(arms_status):
             idx = state % (N*M + K*P)
             state = (state - idx) // (N*M + K*P) 
             if idx >= N*M:
-                arms_pos.insert(0, [-1,-1]) # Unknown xy location
-                pick_pos.insert(0, idx+1 - N*M)
+                p_pos = idx + 1 - N*M
+                arms_pos.insert(0, self._deriveXYfromState(arm_st, pieces_status, p_pos) )
+                pick_pos.insert(0, p_pos)
             else:
                 arms_pos.insert(0, self._idx2xy(idx))
                 pick_pos.insert(0, 0)
@@ -327,15 +353,8 @@ class env_pickplace:
         return not ((x >= self.M) or (x < 0) or (y >= self.N) or (y < 0))
 
     def _isPiecesStatusValid(self, armsStatus, piecesStatus, pickPos):
-        ''' Check pieces status coherence '''
- 
-        # Memoization
-        #idx = self._int2extState([[0,0],[0,0]], self.armsStatus, self.piecesStatus, self.pickPos) # luckily we can reuse this function (setting higher component to 0s)
-        #if idx in self.piecesStatusValid.keys():
-        #    print('j', idx)
-        #    return self.piecesStatusValid[idx]
+        ''' Check arms and pieces status coherence '''
 
-        # Perform the checks
         res = True
 
         # - incoherence: the same piece carried by several arms
@@ -345,8 +364,10 @@ class env_pickplace:
 
         # - incoherence: a piece has not been picked up yet, and it is carried by an arm at the same time
         if res == True:
-            for piece in armsStatus:
-                if (piece > 0) and (piecesStatus[piece - 1] > 0):
+            for piece,pp in zip(armsStatus, pickPos):
+                # Note: this check is not valid for pp>0, because armsStatus is 
+                #       modified (for convinience) at pp==1 during DROP
+                if (piece > 0) and (pp == 0) and (piecesStatus[piece - 1] > 0):
                     res = False
                     break
 
@@ -354,64 +375,72 @@ class env_pickplace:
         if res == True:
             # Both arms picking/dropping the same piece
             if 0 not in pickPos:
-                if ((pickPos[0]-1)/self.P == (pickPos[1]-1)/self.P):
+                if (((pickPos[0] - 1) // self.P) == ((pickPos[1] - 1) // self.P)):
                     res = False
                 
         if res == True:
-            for piece, p in zip(armsStatus, pickPos):
+            for piece, pp in zip(armsStatus, pickPos):
                 # Drop operation pick_pos and piece need to match
-                if piece>0 and p>0 and piece != (((p-1)//self.P) + 1):
+                if piece>0 and pp>0 and piece != (((pp - 1) // self.P) + 1):
                      # carrying a piece and pick/drop other
                      res = False
                      break
 
-        # and store it
-        #self.piecesStatusValid[idx] = res
-
         return res
+
 
     def _isPickUpActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos):
         ''' Check pick up action coherence in the current state for a specific arm '''
-        if pick_pos > 0 and arm_status == 0:
-            return True, (pick_pos-1)//self.P
 
         piece = 0
         valid = False
 
         if arm_status == 0: # arm empty
-            for i,(piece_pos, piece_status) in enumerate(zip(self.piecesLocation['start'], pieces_status)):
-                if (piece_status == 1 and arm_grid_pos == piece_pos) or \
-                   (piece_status == 2 and arm_grid_pos == self.T_pos):
-                   valid = True
-                   piece = i
-                   break
+            if pick_pos > 0:
+                # arm_pos unknown when pick_pos>0
+                piece = (pick_pos - 1) // self.P
+                if pieces_status[piece] > 0:
+                    valid = True
+                else:
+                    valid = False
+            else:
+                for i,(piece_pos, piece_status) in enumerate(zip(self.piecesLocation['start'], pieces_status)):
+                    if (piece_status == 1 and arm_grid_pos == piece_pos) or \
+                       (piece_status == 2 and arm_grid_pos == self.T_pos):
+                       piece = i
+                       valid = True
+                       break
 
         return valid, piece
 
     def _isDropOffActionValid(self, arm_grid_pos, arm_status, pick_pos):
         ''' Check drop off action coherence in the current state for a specific arm '''
-        if pick_pos > 0 and arm_status != 0:
-            pos = self.piecesLocation['end'][arm_status-1] 
-            #TODO not clearrr the last argument
-            return True, (pick_pos-1)//self.P, 0 
 
+        piece = 0
+        piece_status = 0
         valid = False
 
-        piece_status = -1
         if arm_status > 0:
-            if (arm_grid_pos == self.piecesLocation['end'][arm_status-1] ):
+            piece = arm_status - 1
+
+            if pick_pos > 0:
+                assert (piece == (pick_pos-1)//self.P), 'WTF..different piece'
+                #TODO review this piece_status = 0
                 piece_status = 0
                 valid = True
-            if (arm_grid_pos == self.T_pos):
-                piece_status = 2
-                valid = True
+            else:
+                if (arm_grid_pos == self.piecesLocation['end'][piece] ):
+                    piece_status = 0
+                    valid = True
+                elif (arm_grid_pos == self.T_pos) and self.T > 0:
+                    piece_status = 2
+                    valid = True
 
-        return valid, arm_status-1, piece_status
+        return valid, piece, piece_status
 
     def _isGoalMet(self):
         ''' Is MDP solved? '''
-        #TODO: pff not clear this new condition
-        return ((np.sum(self.piecesStatus) == 0) and (np.sum(self.armsStatus) == 0))
+        return ((np.sum(self.piecesStatus) == 0) and (np.sum(self.armsStatus) == 0) and (np.sum(self.pickPos) == 0))
 
     def _getDefaultResetState(self):
         armsGridPos = [[0,0], [6,4]]  # init 2D grid pos
@@ -500,30 +529,24 @@ class env_pickplace:
     #    return state, reward, done, info
 
     def _isStateValid(self, state):
-        # Before processing an action over the current state, let's check if the 
-        # state is valid. Invalid states will not be involved in the RL game.
-        #
-        # Invalid states:
-        # - Robot unable to reach the pos represented by the current state
-        # - Robot arms collission
-        # - Invalid piece status (internal state representation issue)
-        #
-        # Info response field will indicate this issue: 'invalid' #
-        self.reset(state)
+        '''  Convert scalar state number to internal MDP state vars representation
+             and check if that vars combination is valid 
+        '''
 
-        #if self.pickPos != [0,0]:
-        #    return False
+        arms_pos, arms_status, pieces_status, pick_pos = self._ext2intState(state)
 
         valid_state = True
 
+        # Check if arms pose is feasible 
         if valid_state:
-            valid_state = self.robot.checkValidLocation(self.armsGridPos)
+            valid_state = self.robot.checkValidLocation(arms_pos)
+
+        # Check for arms collision
+        if valid_state:
+            valid_state = not self.robot.checkCollision(arms_pos)
 
         if valid_state:
-            valid_state = not self.robot.checkCollision(self.armsGridPos)
-
-        if valid_state:
-            valid_state = self._isPiecesStatusValid(self.armsStatus, self.piecesStatus, self.pickPos)
+            valid_state = self._isPiecesStatusValid(arms_status, pieces_status, pick_pos)
 
         if (state % (self.nS/100)) == 0:
             print(state / (self.nS/100))
@@ -556,17 +579,24 @@ class env_pickplace:
             info   = ''
             return state, reward, done, info
 
-        # Return special error if any arm is in pick/drop operation
+        # Mode 1 means that pieces position is unknown, so some state-action
+        # pairs (ie: pick piece 1) can not be yet resolved.
         #
-        if sum(self.pickPos) > 0 and mode == 1:
-            if self.armsGridPos == [[0, 3], [9, 2]]:
-                print('P ', pick_pos)
-            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
-            reward = -30
-            done   = False
-            info   = ''
-            return state, reward, done, info
-            
+        if mode == 1:
+            joint_a = self._ext2intAction(action)
+            for i,a in enumerate(joint_a):
+                # Pick/drop
+                if ((a == 4) and (self.armsStatus[i] == 0)) or (((a == 5) and (self.armsStatus[i] > 0))):
+                   if (self.pickPos[i] > 0) or \
+                      (self.pickPos[i] == 0 and self.armsGridPos[i] != self.T_pos): # actually, intermediate position can be processed
+                       # Add special mark in the reward function
+                       # This state-action pair will be resolved when pieces position is known (later with update() function)
+                       state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+                       reward = -30
+                       done   = False
+                       info   = ''
+                       return state, reward, done, info
+
         # Now, let's see what happens when applying the agent action. Wrong 
         # actions will be punished, while the good ones will be reinforced
         # (reward reponse)
@@ -581,28 +611,25 @@ class env_pickplace:
         info            = ''
         done            = False
 
+        # Preparing MDP state vars for the next time-step
         next_arms_status     = self.armsStatus[:]                 # copy 1D list
         next_pieces_status   = self.piecesStatus[:]               # copy 1D list
         next_arms_grid_pos   = []
         next_pick_pos        = self.pickPos[:]
+
         next_pieces_grid_pos = [x[:] for x in self.piecesCurrPos] # copy 2D list
         move_both_arms       = True 
 
+        # helper for adjacent moves
         offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
 
+        #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)
-        for i,(a, pos_arg, pick_pos) in enumerate(zip(joint_a, self.armsGridPos, self.pickPos)):
-
-            # ONLY_LEFT_ARM: uncomment
-            #if i==1:
-            #    if a == 4 or a == 5:
-            #       #force left arm not to move
-            #       valid_state = False
-            #       break
+        for i,(a, pos_arg, arm_status, pick_pos) in enumerate(zip(joint_a, self.armsGridPos, self.armsStatus, self.pickPos)):
 
             pos = pos_arg[:] # Dont want to directly modify a for-loop argument
 
-            # move (right/left/down/up)
+            # Move (right/left/down/up)
             if a < 4:
                 if pick_pos > 0:
                     valid_state = False # pick/drop operation only allows pick/drop actions
@@ -613,69 +640,66 @@ class env_pickplace:
                     valid_state = False # Grid boundaries exceeded
                     break
 
-                # update piece pos
-                piece_idx = self.armsStatus[i]
-                if piece_idx > 0:
-                    next_pieces_grid_pos[piece_idx-1] = pos
+                # update piece pos (helper for plotting)
+                # TODO: I think this can be derived from state and no need for
+                # extra vars for plotting
+                if arm_status > 0:
+                    next_pieces_grid_pos[arm_status - 1] = pos
 
             # pick or place
             #
-            # 'mode' var is used for an internal trick.
-            # - Set to 1 one when generating a generic MDP (valid for any 
-            #   configuration of the pieces). The idea is to generate most of the
-            #   tabular MDP offline, and then update it when a specific configuration
-            #   of the pieces is known (online step)
-            # - Set to 0 (default value) for normal operation.
-            #
             elif a == 4 or a == 5:
-                if mode == 1:
-                    # Configuration of the pieces is unknown at this point, so
-                    # no decision can be taken yet.
-                    # If the state/action pair does not result in an big negative
-                    # reward due to other checks, the reward will be set to a
-                    # predefined value (mark) indicating that this state/action
-                    # pair might need update.
-                    # Once the specific configuration of pieces is known, the 
-                    # reward of most of the state/action pairs will be set to 
-                    # (-20, big punishment), and that for a few ones (matching
-                    # the pieces location) will be recomputed to update the MDP.
-                    pick_place_mark = True
-                else:
-                    if pick_pos > 0: tmp_pick_pos = (pick_pos-1)%self.P + 1
-                    else:            tmp_pick_pos = 0
 
-                    # pick up
-                    if a == 4:
-                        valid_state, piece_idx = self._isPickUpActionValid(pos, self.armsStatus[i], self.piecesStatus, pick_pos)
-                        if valid_state:
-                            if tmp_pick_pos >= self.P:
-                                next_pick_pos[i] = 0
-                                next_arms_status[i] = piece_idx + 1
-                                next_pieces_status[piece_idx] = 0 # piece picked up
-                            else:
-                                next_pick_pos[i] = tmp_pick_pos + 1 + self.P*piece_idx
+                # Remind that pick_pos is 0..K*P (piece 1: 1..P, pieces 2: P+1..2P, ...)
+                if pick_pos > 0: reduced_pick_pos = ((pick_pos - 1) % self.P) + 1
+                else:            reduced_pick_pos = 0
 
-                            # Fix location
-                            if pick_pos > 0:
-                                pos = self.piecesLocation['start'][(pick_pos-1)//self.P]
+                # pick up
+                if a == 4:
+                    valid_state, piece_idx = self._isPickUpActionValid(pos, arm_status, self.piecesStatus, pick_pos)
+                    if valid_state:
+                        if reduced_pick_pos >= self.P:
+                            next_pick_pos[i] = 0
+                            next_arms_status[i] = piece_idx + 1
+                            next_pieces_status[piece_idx] = 0 # piece picked up
                         else:
-                            break # Nothing to pick up
-                    # drop off
-                    elif a == 5:
-                        valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, self.armsStatus[i], pick_pos)
-                        if valid_state:
-                            if tmp_pick_pos >= self.P:
-                                next_pick_pos[i] = 0
-                                next_arms_status[i]  = 0
+                            # creo que ambas lineas son lo mismo
+                            next_pick_pos[i] = reduced_pick_pos + 1 + piece_idx*self.P
+
+### pos should be unchanged
+                        if pick_pos > 0:
+                            #print(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+                            #print(pos , self.piecesLocation['start'][(pick_pos-1)//self.P])
+                            #assert (pos == self.piecesLocation['start'][(pick_pos-1)//self.P]), 'Mmm why did it change?'
+                            pos = self.piecesLocation['start'][(pick_pos-1)//self.P]
+                            pass
+                    else:
+                        break # Nothing to pick up
+
+                # drop off
+                elif a == 5:
+                    valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, pick_pos)
+                    if valid_state:
+                        if reduced_pick_pos >= self.P:
+                            next_pick_pos[i] = 0
+                            next_arms_status[i] = 0
+                            if reduced_pick_pos == 0:
                                 next_pieces_status[piece_idx] = piece_status
-                            else:
-                                next_pick_pos[i] = tmp_pick_pos + 1 + self.P*piece_idx
-
-                            # Fix location
-                            if pick_pos > 0:
-                                pos = self.piecesLocation['end'][(pick_pos-1)//self.P]
                         else:
-                            break # Nothing to drop off
+                            # creo que ambas lineas son lo mismo
+                            next_pick_pos[i] = reduced_pick_pos + 1 + self.P*piece_idx
+                            # For convinience, we anticipate the piece status update
+                            if reduced_pick_pos == 0:
+                                next_pieces_status[piece_idx] = piece_status
+
+###                        # Fix location
+                        if pick_pos > 0:
+                            #TODO esto me huele a que con mode 0 o 1 debemos hacer diferente chequeo
+                            #assert (pos == self.piecesLocation['start'][(pick_pos-1)//self.P]), 'Mmm why did it change in drop?'
+                            pos = self.piecesLocation['end'][(pick_pos-1)//self.P]
+                            pass
+                    else:
+                        break # Nothing to drop off
             # stay
             else:
                 move_both_arms  = False # One arm stays still
@@ -700,6 +724,7 @@ class env_pickplace:
                 # special reward mark (state unchanged)
                 reward = -30
             else:
+                # No need to copy, just point to the next_xxx ones
                 self.armsStatus    = next_arms_status
                 self.piecesStatus  = next_pieces_status
                 self.armsGridPos   = next_arms_grid_pos
