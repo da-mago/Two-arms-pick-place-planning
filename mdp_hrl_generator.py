@@ -354,9 +354,9 @@ def runLowMDP(policy, mapped_state):
         num_steps += 1
 
         # Show pick&place solution
-        #state             = robot_mdp.MDP[2][mapped_state]
-        #armsGridPos, armsStatus = robot_mdp._ext2intState(state)
-        #print("sds", armsGridPos, armsStatus)
+        state             = robot_mdp.MDP[2][mapped_state]
+        armsGridPos, armsStatus = robot_mdp._ext2intState(state)
+        print("sds", armsGridPos, armsStatus)
 
         #mapped_state = robot_mdp.MDP[3][state]
         action = policy[ mapped_state ]
