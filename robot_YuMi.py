@@ -21,7 +21,7 @@ class Robot_YuMi():
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v5.csv')    
-        self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
+        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
 
 
     def _loadCSV(self, distanceFilename, configFilename):
@@ -38,6 +38,7 @@ class Robot_YuMi():
         #grid_size = len(csv_data)
         M  = int(csv_data[0][1])
         N  = int(csv_data[0][2])
+        Z  = 1 # pending to new excel format for 3D grid
         Zs = int(csv_data[0][4])
         grid_size = M*N
         angles_size = 7
@@ -119,38 +120,44 @@ class Robot_YuMi():
                             #distance[i] = 100
 
 
-        return M, N, distance, config, reachable, location
+        return M, N, Z, distance, config, reachable, location
 
 
     def checkCollision(self, armsGridPos):
         # Ignore the check if any arm pos is unknown
-        if [-1,-1] in armsGridPos:
+        if [-1,-1,-1] in armsGridPos:
+            assert False, 'OK... not sure if this happens'
             return False
 
-        idx = self._xyxy2idx(armsGridPos)
+        idx = self._armsPos2idx(armsGridPos)
         if self.distance[idx] <= self.min_dist:
             return True
 
         return False
 
     #TODO: esto lo he copiado de env_pickplace..mmm dejalo como deberia
-    def _xyxy2idx(self, xyxy):
-        ''' xyxy grid pos to index '''
-        (xl,yl),(xr,yr) = xyxy
-        return (xl + yl*self.M)*self.M*self.N + xr + yr*self.M
-        #return ((self.M-1-xl) + yl*self.M)*self.M*self.N + (self.M-1-xr) + yr*self.M
+    def _armsPos2idx(self, armsPos):
+        ''' Grid pos (both arms) to scalar '''
+        res = 0
+        for x,y,z in armsPos:
+            res *= self.M*self.N*self.Z
+            res += x + y*self.M + z*self.M*self.N
+        return res
 
-    def _xy2idx(self, xy):
-        ''' xy grid pos to index '''
-        x,y = xy
-        return x + y*self.M
+    def _xy2idx(self, singleArmPos):
+        ''' Grid pos (single arm) to scalar '''
+        x,y,z = singleArmPos
+        return x + y*self.M + z*self.M*self.N
 
     def checkValidLocation(self, armsGridPos):
         for pos, reach in zip(armsGridPos, self.reachable):
-            if pos != [-1,-1]: # Ignore the check if the arm pos is unknown
+            if pos != [-1,-1,-1]: # Ignore the check if the arm pos is unknown
                 idx = self._xy2idx(pos)
                 if not reach[idx]:
                     return False
+            else:
+                assert False, 'OK... not sure if this happens in checkValidLocation'
+
 
         ## Trampa para que el brazo izquierdo no pase de cierta posicion en el eje X. Es algo temporal para generar una solucion trucada para llevarla a RobotStudio
         ## Si y<=400 and x>=250, o y>=500 and x>=150

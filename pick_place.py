@@ -78,7 +78,8 @@ def generatePythonPlan(policy, initial_pos, pieces):
     src  = '# Pieces location\n'
     src += 'pieces_location = {}\n\n'.format(pieces)
 
-    idxs        = [(x + y*robot.M) for x,y in initial_pos]
+    #idxs        = [(x + y*robot.M) for x,y in initial_pos]
+    idxs = [robot_mdp._xy2idx(pos) for pos in initial_pos]
     arms_config = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
     arms_loc    = [list(robot.location[idx]) for idx in idxs]
     src += '# Robot init configuration\n'
@@ -101,7 +102,8 @@ def generatePythonPlan(policy, initial_pos, pieces):
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
-        idxs           = [(x + y*robot.M) for x,y in arms_pos]
+        #idxs           = [(x + y*robot.M) for x,y in arms_pos]
+        idxs           = [robot_mdp._xy2idx(pos) for pos in initial_pos]
         # TODO: this function does not take care of different Zs grids
         arms_config    = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
         arms_loc       = [list(robot.location[idx]) for idx in idxs]
@@ -153,18 +155,20 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     robot_mdp.reset(next_state)
 
     print("Generating plan ...")
-    idxs = [(x + y*robot_mdp.M) for (x,y) in initial_pos]
+    #idxs = [(x + y*robot_mdp.M) for (x,y) in initial_pos]
+    idxs = [robot_mdp._xy2idx(pos) for pos in initial_pos]
     arms_config = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
     #for ang in reversed(arms_config):
     #    print(','.join([str(x) for x in ang]))
 
     gripper = [0,0] # Gripper state: 0 (Open) | 1 (Close)
-    for ang,(pos_x, pos_y),grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
+    for ang, pos, grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
         # Format:
         #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
         z = Z_GRIPPER[0]
         src += ','.join([str(x) for x in ang]) 
-        idx = pos_x + pos_y*robot_mdp.M
+        #idx = pos_x + pos_y*robot_mdp.M
+        idx = robot_mdp._xy2idx(pos)
         x,y,_ = robot.location[idx]
         src += ',{} # {} {} {}\n'.format(grip, y,-x,z) # Axis conversion for RobotStudio
 
@@ -192,15 +196,16 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
                 if a_a == 4:
-                    x,y = robot_mdp.piecesLocation['start'][tmp]
+                    pos = robot_mdp.piecesLocation['start'][tmp]
                 else:
-                    x,y = robot_mdp.piecesLocation['end'][tmp]
+                    pos = robot_mdp.piecesLocation['end'][tmp]
                 #print('5', x,y,p_pos)
                 tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
             else:
-                x,y = a_pos
+                pos = a_pos
                 tmp_p_pos = 0
-            idxs.append(x + y*robot_mdp.M)
+            #idxs.append(x + y*robot_mdp.M)
+            idxs.append(robot_mdp._xy2idx(pos))
             # Go down, up, open, close gripper
             #print('d', a_a, tmp_p_pos, robot_mdp.P)
             #                                                     opened/closed           Z                arm Zcomment (grip action)        
@@ -472,7 +477,7 @@ if __name__ == "__main__":
         #    #    500 50      600 -250    left, right
         #    #         [[4, 3], [7, 4]]
         #    #   600 -150 50  200 -350 
-        armsGridPos = [[6, 4], [8, 0]]
+        armsGridPos = [[6, 4, 0], [8, 0, 0]]
         #armsGridPos = [[6, 3], [8, 1]]
 
         #pieces[0] = pieces[3]

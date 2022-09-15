@@ -99,7 +99,7 @@ class mdp_generator(env_pickplace):
     def update(self):
         ''' Update MDP for a specific configuration of pieces '''
     
-        offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
+        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]]) # right, left, down, up
     
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
@@ -123,12 +123,12 @@ class mdp_generator(env_pickplace):
         # For one arm (arm1 or arm2) being on any of the init or end pieces position, iterate over
         # the rest of state combinations. Recall the MDP state formula:
         #
-        # Total_states = (M*N + K*P)^2 * (K+1)^2 * (2+T)^K
-        #              ____/      |          |         |
-        #             /           |          |         |
-        #       armsGridPos    pickPos   armsStatus   piecesStatus
+        # Total_states = (M*NZ + K*P)^2 * (K+1)^2 * (2+T)^K
+        #              ____/       |          |         |
+        #             /            |          |         |
+        #       armsGridPos     pickPos   armsStatus   piecesStatus
         #
-        #     Grid size: M*N   --------------\ Hence the (M*N + K*P)^2
+        #     Grid size: M*N*Z   --------------\ Hence the (M*N*Z + K*P)^2
         #     Extra pick/frop steps: K*P ----/
         #     Arm status: 0-K (0: empty arm, 1-K: arm carrying piece Ki) -> Hence the (K+1)^2
         #     Piece status: 0 (piece processed) or (piece not processed) -> Hence the 2^K
@@ -155,7 +155,7 @@ class mdp_generator(env_pickplace):
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
                 for tmp_pp_1 in range(self.P+1):
                     # Other-arm state vars loop (at any position)
-                    for xyp_2 in range(self.M*self.N + self.K*self.P):
+                    for xyzp_2 in range(self.M*self.N*self.Z + self.K*self.P):
                         for status_2 in range(self.K+1):
                             # Pieces state vars loop
                             for ps in range((2+self.T)**self.K):
@@ -182,12 +182,12 @@ class mdp_generator(env_pickplace):
                                     continue
     
                                 # Other-arm
-                                if xyp_2 < (self.M * self.N):
-                                    pos_2 = [xyp_2 % self.M, xyp_2 // self.M]
+                                if xyzp_2 < (self.M * self.N * self.Z):
+                                    pos_2 = self._idx2xy(xyzp_2)
                                     pick_pos_2 = 0
                                 else:
-                                    pos_2 = [-1, -1]
-                                    pick_pos_2 = xyp_2 + 1 - (self.M * self.N)
+                                    pos_2 = [-1, -1, -1] # undefined
+                                    pick_pos_2 = xyzp_2 + 1 - (self.M * self.N)
     
                                 # Get internal scalar state representation (from internal state vars)
                                 if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
@@ -272,7 +272,7 @@ class mdp_generator(env_pickplace):
     
                                         pos2 = list(pos_2 + offset_a[a_2])
                                         # TODO cambiar esto por funcion existetne que ya lo chequea
-                                        if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N:
+                                        if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N or pos2[2] >= self.Z or pos2[2] < 0:
                                             continue
                                     else:
                                         pos2 = pos_2

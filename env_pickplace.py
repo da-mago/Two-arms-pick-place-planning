@@ -18,13 +18,15 @@ import code
 #code.interact(readfunc=readfunc, local=globals()
 
 # MDP
-# Consider 2D (z=0) moves for Arm EEs
-# - exception: pick and place punctual operations (not needed a 3D map anyway)
+# Consider 3D moves (in a grid) for Arm EEs
+# - exception: pick and place wait states are not considered part of the grid 3D
+#
+# TODO this doc needs to be updated
 #
 # STATES
 # ------
-# EE arm pos (x, y, z)  <- N*M individual pos states 
-# Joint arms pos states <- (N*M)^2
+# EE arm pos (x, y, z)  <- N*M*Z individual pos states 
+# Joint arms pos states <- (N*M*Z + K*P)^2
 # K pieces              <- (2^K) pieces states
 # EE arm status (free or carrying piece i) <- K+1
 # (There are two arms: EE1 and EE2)
@@ -132,7 +134,7 @@ class env_pickplace:
         # - Each state is externally represented by a single scalar (see
         #   _int2extState() function)
         #
-        self.M, self.N = self.robot.M, self.robot.N
+        self.M, self.N, self.Z = self.robot.M, self.robot.N, self.robot.Z
         self.K = len(self.piecesCfg)
         self.T = 0 # Number of available intermediate positions (limited up to 1 by current implementation)
         self.P = 2 # Number of ´extra´ states representing the pick up or drop off operation
@@ -146,11 +148,11 @@ class env_pickplace:
         self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickStatus = self._getDefaultResetState()
 
         # Extra intermediate position
-        self.T_pos = [3, 3] # arbitrary value (it should be a valid position for both arms)
+        self.T_pos = [3, 3, 0] # arbitrary value (it should be a valid position for both arms)
  
         # State space size
-        # Note: instead fo M*N*P (3D), we extend Z axis only for K cells (where piece can be picked or dropeed). This is just to reduce memory resources. In the end we would end up filtering out those cells where you can not pick/drop a piece
-        self.nS = (((self.M * self.N) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
+        # Note: instead fo M*N*Z*P (4D), we extend Z axis only for K cells (where piece can be picked or dropeed). This is just to reduce memory resources. In the end we would end up filtering out those cells where you can not pick/drop a piece
+        self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
 
         # Action space size: 
         self.single_nA = 7
@@ -207,7 +209,7 @@ class env_pickplace:
     def _getExtState(self):
         return self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
 
-    def _deriveXYfromState(self, armStatus, piecesStatus, pickPos):
+    def _derivePosFromState(self, armStatus, piecesStatus, pickPos):
         ''' XY arm pos and pickPos info are combined in the MDP: (M*N + K*P), so
             when P>0, XY info is not encoded and need to be derived from the other
             MDP state vars '''
@@ -219,24 +221,24 @@ class env_pickplace:
         else:
         #    assert False, 'Really? armsStatus is 0'
             # Impossible to get the info
-            return [-1,-1]
+            return [-1,-1,-1]
 
         pStatus = piecesStatus[piece]
         if pStatus == 0:   # end
-            x,y = self.piecesLocation['end'][piece]
+            pos = self.piecesLocation['end'][piece]
         elif pStatus == 1: # init
-            x,y = self.piecesLocation['start'][piece]
+            pos = self.piecesLocation['start'][piece]
         elif pStatus == 2: # intermediate 1
-            x,y = self.T_pos
+            pos = self.T_pos
         else:              # unexpected
         #    assert False, 'Really? unknonw piece Status'
-            x,y = -1,-1
+            pos = [-1,-1,-1]
 
-        return [x,y]
+        return pos
 
     def _int2extState(self, armsPos, armsStatus, piecesStatus, pickPos):
         ''' convert internal state representation to a single scalar '''
-        N,M,K,P,T = self.N, self.M, self.K, self.P, self.T
+        N,M,Z,K,P,T = self.N, self.M, self.Z, self.K, self.P, self.T
 
         tmp = 0
         for status in piecesStatus:
@@ -251,19 +253,19 @@ class env_pickplace:
         state += tmp * ((2 + T)**K)
 
         tmp = 0
-        for (x,y),p in zip(armsPos, pickPos):
-            tmp *= (N*M + K*P)
+        for pos,p in zip(armsPos, pickPos):
+            tmp *= (N*M*Z + K*P)
             if p == 0 or self.P == 0:
-                tmp += self._xy2idx([x,y])
+                tmp += self._xy2idx(pos)
             else:
-                tmp += N*M-1 + p
+                tmp += N*M*Z-1 + p
         state += tmp * ((2 + T)**K) * ((K+1)**2)
 
         return state
 
     def _ext2intState(self, state):
         ''' convert external state (scalar) to internal state representation '''
-        N,M,K,P,T = self.N, self.M, self.K, self.P, self.T
+        N,M,Z,K,P,T = self.N, self.M, self.Z, self.K, self.P, self.T
 
         pieces_status = []
         for _ in range(K):
@@ -280,11 +282,11 @@ class env_pickplace:
         arms_pos = [] 
         pick_pos = []
         for arm_st in reversed(arms_status):
-            idx = state % (N*M + K*P)
-            state = (state - idx) // (N*M + K*P) 
-            if idx >= N*M:
-                p_pos = idx + 1 - N*M
-                arms_pos.insert(0, self._deriveXYfromState(arm_st, pieces_status, p_pos) )
+            idx = state % (N*M*Z + K*P)
+            state = (state - idx) // (N*M*Z + K*P) 
+            if idx >= N*M*Z:
+                p_pos = idx + 1 - N*M*Z
+                arms_pos.insert(0, self._derivePosFromState(arm_st, pieces_status, p_pos) )
                 pick_pos.insert(0, p_pos)
             else:
                 arms_pos.insert(0, self._idx2xy(idx))
@@ -315,18 +317,21 @@ class env_pickplace:
         dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in item_list]
         return self._idx2xy(np.argmin(dist))
 
-    def _xy2idx(self, xy):
+    def _xy2idx(self, singleArmPos):
         ''' xy grid pos to index '''
         # (N-1)*M, (N-1)*M+1, (N-1)*M+2, ... N*M-1    y
         #                                             ^
         #       M,       M+1,       M+2, ... 2M-1     |
         #       0,         1,         2, ...  M-1     o--> x
-        x,y = xy
-        return x + y*self.M
+        x,y,z = singleArmPos
+        return x + y*self.M + z*self.M*self.N
 
     def _idx2xy(self, idx):
         ''' xy grid pos to index '''
-        return [idx % self.M, idx // self.M]
+        x = idx % self.M
+        y = (idx // self.M) % self.N
+        z = idx // (self.M*self.N)
+        return [x, y, z]
 
     def _logic2phy(self, pos):
         ''' convert logical grid cell pos to physical 3D point
@@ -349,8 +354,10 @@ class env_pickplace:
 #
     def _isArmsGridPosValid(self, pos):
         ''' Check if pos is inside the grid boundaries '''
-        x,y = pos
-        return not ((x >= self.M) or (x < 0) or (y >= self.N) or (y < 0))
+        x,y,z = pos
+        return not ((x >= self.M) or (x < 0) or \
+                    (y >= self.N) or (y < 0) or \
+                    (z >= self.Z) or (z < 0))
 
     def _isPiecesStatusValid(self, armsStatus, piecesStatus, pickPos):
         ''' Check arms and pieces status coherence '''
@@ -448,7 +455,7 @@ class env_pickplace:
         return ((np.sum(self.piecesStatus) == 0) and (np.sum(self.armsStatus) == 0) and (np.sum(self.pickPos) == 0))
 
     def _getDefaultResetState(self):
-        armsGridPos = [[0,0], [6,4]]  # init 2D grid pos
+        armsGridPos = [[0,0,0], [6,4,0]]  # init 2D grid pos
         armsStatus  = [0, 0]          # init status: carrying no piece
         piecesStatus= [1 for _ in range(self.K)] # init status: No piece has been picked up yet
         pickPos     = [0,0]
@@ -628,7 +635,7 @@ class env_pickplace:
         move_both_arms       = True 
 
         # helper for adjacent moves
-        offset_a = np.array([[1,0],[-1,0],[0,1],[0,-1]]) # rigth, left, down, up
+        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]]) # rigth, left, down, up
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)
