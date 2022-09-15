@@ -87,12 +87,13 @@ def generatePythonPlan(policy, initial_pos, pieces):
     src += 'robot_plan = [\n'
     src += '#   Configuration                                                                                                                               Actions  -  Grid location  -  Location\n'
 
-    pieces_status = [1 for _ in range(robot.K)]
+    pieces_status = [1 for _ in range(robot_mdp.K)]
     next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
     robot_mdp.reset(next_state)
     done = False
     while done == False:
         action = policy[ robot_mdp.MDP[3][next_state] ]
+        previous_armsStatus = robot_mdp.armsStatus[:]
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Register plan
@@ -105,10 +106,21 @@ def generatePythonPlan(policy, initial_pos, pieces):
         arms_config    = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
         arms_loc       = [list(robot.location[idx]) for idx in idxs]
 
+        arms_config = [] # remove arms pose info
+        # Hack to add what piece
+        for i,a in enumerate(arms_action):
+            if a == 4 or a == 5:
+                p = robot_mdp.armsStatus[i] if a == 4 else previous_armsStatus[i]
+                if robot_mdp.pickPos[i] > 0: piece = ((robot_mdp.pickPos[i] - 1) // robot_mdp.P) + 1
+                else:                        piece = p
+                a_names[i] += 'P{}'.format(piece) + ("I" if robot_mdp.armsGridPos[i] == robot_mdp.T_pos else " ")
+            else:
+                a_names[i] += '   '
         src += '    {},    \t# {},  {} -> {}\n'.format(arms_config, a_names, arms_pos, arms_loc)
 
     src += ']\n' # End of robot plan
     print(src)
+
 
 
 def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
@@ -174,6 +186,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
         z_plane = []
         gripper_action = []
         joint_a = robot_mdp._ext2intAction(action)
+        print(joint_a, robot_mdp.armsGridPos, robot_mdp.armsStatus, robot_mdp.piecesStatus, robot_mdp.pickPos)
         #gripper = [0, 0]
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
@@ -416,9 +429,12 @@ if __name__ == "__main__":
                   ]
 
         # prueba_004
-        pieces = [
+        # All 4 pieces = 45 steps
+        pieces = [ 
                   {'start' : [-250, 300, 0],  # Piece 1
                    'end'   : [ 250, 500, 0],
+                  #{'start' : [-350, 400, 0],  # Piece 1 ( [1,2] -> no alcanzable por arm 1)
+                  # 'end'   : [ 250, 600, 0],  #         ( [7,4] -> no alcanzable por arm 0)
                   },                     
                   {'start' : [-250, 500, 0],  # Piece 2
                    'end'   : [ 350, 200, 0],
@@ -431,22 +447,22 @@ if __name__ == "__main__":
                   }
                   ]
         ## Only two pieces
-        ## 1-2 (then 3-4)  27 + 28 = 56
-        ## 1-3 (then 2-4)  27 + 22 = 49
-        ## 1-4 (then 2-3)  22 + 24 = 46
-        ## 2-3 (then 1-4)  23 + 24 = 47
-        ## 2-4 (then 1-3)  21 + 26 = 47
-        ## 3-4 (then 1-2)  27 + 26 = 53
+        ## 1-2 (then 3-4)  24 + 26 = 50
+        ## 1-3 (then 2-4)  26 + 24 = 50 
+        ## 1-4 (then 2-3)  25 + 22 = 47 
+        ## 2-3 (then 1-4)  24 + 24 = 48
+        ## 2-4 (then 1-3)  24 + 26 = 50
+        ## 3-4 (then 1-2)  27 + 23 = 50
         #pieces = [
         #          {'start' : [-250, 300, 0],  # Piece 1
         #           'end'   : [ 250, 500, 0],
+        #          },
+        #          {'start' : [-250, 500, 0],  # Piece 2
+        #           'end'   : [ 350, 200, 0],
         #          },                     
-        #          #{'start' : [-250, 500, 0],  # Piece 2
-        #          # 'end'   : [ 350, 200, 0],
+        #          #{'start' : [-350, 300, 0],  # Piece 3
+        #          # 'end'   : [ 150, 500, 0],
         #          #},                     
-        #          {'start' : [-350, 300, 0],  # Piece 3
-        #           'end'   : [ 150, 500, 0],
-        #          },                     
         #          #{'start' : [-150, 300, 0],  # Piece 4
         #          # 'end'   : [ 150, 600, 0],
         #          #}
@@ -457,7 +473,7 @@ if __name__ == "__main__":
         #    #         [[4, 3], [7, 4]]
         #    #   600 -150 50  200 -350 
         armsGridPos = [[6, 4], [8, 0]]
-        #armsGridPos = [[4, 3], [7, 4]]
+        #armsGridPos = [[6, 3], [8, 1]]
 
         #pieces[0] = pieces[3]
         #pieces[1] = pieces[2]
@@ -518,6 +534,7 @@ if __name__ == "__main__":
                 print(robot_mdp.piecesLocation)
                 print("DATA: ", armsGridPos, ";", pieces_str, ";", num_steps)
                 generateTxtPlan(policy, armsGridPos, pieces, robot_mdp)
+                generatePythonPlan(policy, armsGridPos, pieces)
                 #import sys
                 #sys.exit()
             #except:

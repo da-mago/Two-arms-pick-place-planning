@@ -134,8 +134,8 @@ class env_pickplace:
         #
         self.M, self.N = self.robot.M, self.robot.N
         self.K = len(self.piecesCfg)
-        self.T = 1 # Number of available intermediate positions (limited up to 1 by current implementation)
-        self.P = 0 # Number of ´extra´ states representing the pick up or drop off operation
+        self.T = 0 # Number of available intermediate positions (limited up to 1 by current implementation)
+        self.P = 2 # Number of ´extra´ states representing the pick up or drop off operation
                    #  P = 0      2      4
                    #     .->.   .  .   .  .
                    #            |  |   |  |
@@ -386,6 +386,11 @@ class env_pickplace:
                      res = False
                      break
 
+        # - incoherence: more than one piece in the same (and unique) intermediate position
+        if res == True:
+            if (np.array(piecesStatus) == 2).sum() > 1:
+                res = False
+                pass
         return res
 
 
@@ -413,7 +418,7 @@ class env_pickplace:
 
         return valid, piece
 
-    def _isDropOffActionValid(self, arm_grid_pos, arm_status, pick_pos):
+    def _isDropOffActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos):
         ''' Check drop off action coherence in the current state for a specific arm '''
 
         piece = 0
@@ -426,7 +431,7 @@ class env_pickplace:
             if pick_pos > 0:
                 assert (piece == (pick_pos-1)//self.P), 'WTF..different piece'
                 #TODO review this piece_status = 0
-                piece_status = 0
+                piece_status = pieces_status[piece]
                 valid = True
             else:
                 if (arm_grid_pos == self.piecesLocation['end'][piece] ):
@@ -548,8 +553,8 @@ class env_pickplace:
         if valid_state:
             valid_state = self._isPiecesStatusValid(arms_status, pieces_status, pick_pos)
 
-        if (state % (self.nS/100)) == 0:
-            print(state / (self.nS/100))
+        if (state % (self.nS//100)) == 0:
+            print(state / (self.nS//100))
 
         return valid_state
 
@@ -567,6 +572,8 @@ class env_pickplace:
                   used to update the MDP once the specific set of pieces 
                   configuration is known.
         '''
+
+        # It is assumed that current state is valid
 
         # First, check if we've already met the goal
         #
@@ -587,7 +594,7 @@ class env_pickplace:
             for i,a in enumerate(joint_a):
                 # Pick/drop
                 if ((a == 4) and (self.armsStatus[i] == 0)) or (((a == 5) and (self.armsStatus[i] > 0))):
-                   if (self.pickPos[i] > 0) or \
+                   if (self.pickPos[i] > 0  and self.armsGridPos[i] != self.T_pos) or \
                       (self.pickPos[i] == 0 and self.armsGridPos[i] != self.T_pos): # actually, intermediate position can be processed
                        # Add special mark in the reward function
                        # This state-action pair will be resolved when pieces position is known (later with update() function)
@@ -668,17 +675,14 @@ class env_pickplace:
 
 ### pos should be unchanged
                         if pick_pos > 0:
-                            #print(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
-                            #print(pos , self.piecesLocation['start'][(pick_pos-1)//self.P])
-                            #assert (pos == self.piecesLocation['start'][(pick_pos-1)//self.P]), 'Mmm why did it change?'
-                            pos = self.piecesLocation['start'][(pick_pos-1)//self.P]
-                            pass
+                            if self.piecesStatus[piece_idx] == 1: pos = self.piecesLocation['start'][piece_idx]
+                            else:                                 pos = self.T_pos
                     else:
                         break # Nothing to pick up
 
                 # drop off
                 elif a == 5:
-                    valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, pick_pos)
+                    valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, self.piecesStatus, pick_pos)
                     if valid_state:
                         if reduced_pick_pos >= self.P:
                             next_pick_pos[i] = 0
@@ -694,19 +698,17 @@ class env_pickplace:
 
 ###                        # Fix location
                         if pick_pos > 0:
-                            #TODO esto me huele a que con mode 0 o 1 debemos hacer diferente chequeo
-                            #assert (pos == self.piecesLocation['start'][(pick_pos-1)//self.P]), 'Mmm why did it change in drop?'
-                            pos = self.piecesLocation['end'][(pick_pos-1)//self.P]
-                            pass
+                            if piece_status == 0: pos = self.piecesLocation['end'][piece_idx]
+                            else:                 pos = self.T_pos
                     else:
                         break # Nothing to drop off
             # stay
             else:
                 move_both_arms  = False # One arm stays still
-                #TODO: Tbis should be OK
-                #if pick_pos>0:
-                #    valid_state = False
-                #    break
+
+                if pick_pos > 0:
+                    valid_state = False
+                    break
 
             next_arms_grid_pos.append(pos)
 

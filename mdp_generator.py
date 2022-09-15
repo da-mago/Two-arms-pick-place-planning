@@ -71,12 +71,7 @@ class mdp_generator(env_pickplace):
         mdp_v = np.array(valid_states)
         mdp_i = {x:i for i,x in enumerate(mdp_v)}
         for i,s in enumerate(valid_states):
-            #if s>0000:
-            #    print(s)
             for a in range(self.nA):
-               #if s>0000:
-               #    joint_a = self._ext2intAction(a)
-               #    print(joint_a)
                self.reset(s)
                next_state, reward, done, info = self._step(a, mode=1)
                mdp_s[i][a] = states_idx[next_state]
@@ -174,7 +169,7 @@ class mdp_generator(env_pickplace):
     
                                 # Fix-arm
                                 reduced_pp_1 = tmp_pp_1
-                                if reduced_pp_1 > 0: pick_pos_1 += i * self.P # Range 0..K*P
+                                if reduced_pp_1 > 0: pick_pos_1 = reduced_pp_1 + (i * self.P) # Range 0..K*P
                                 else:                pick_pos_1 = 0
                                 if pieces_status[i] == 1:
                                     pos = pos_ini
@@ -252,9 +247,11 @@ class mdp_generator(env_pickplace):
                                         self.reset(state)
                                         next_state, reward, _, _ = self._step(action)
                                         #print(state, action)
-                                        self.MDP[0][idx][action] = states_idx[next_state]
-                                        self.MDP[1][idx][action] = reward
-                                        counter += 1
+                                        #if self._isStateValid(next_state):
+                                        if next_state in states_idx:
+                                            self.MDP[0][idx][action] = states_idx[next_state]
+                                            self.MDP[1][idx][action] = reward
+                                            counter += 1
                                         # Done
                                         continue
     
