@@ -27,12 +27,12 @@ class Robot_YuMi():
           for y in range(5):
             print(self.location[x,y,0])
 
-        for x in range(10):
-          for y in range(5):
-            print(self.reachable[1,x,y,0])
+        for y in range(5):
+          for x in range(10):
+            print(self.reachable[0,x,y,0])
 
-        for x in range(10):
-          for y in range(5):
+        for y in range(5):
+          for x in range(10):
             print(self.reachable[1,x,y,0])
 
         for x in range(10):
