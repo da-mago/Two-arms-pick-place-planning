@@ -35,24 +35,20 @@ class Robot_YuMi():
             #csv_data = [row for i,row in enumerate(csv_reader) if i>=3]
             csv_data = [row for i,row in enumerate(csv_reader)]
 
-        #grid_size = len(csv_data)
         M  = int(csv_data[0][1])
         N  = int(csv_data[0][2])
         Z  = 1 # pending to new excel format for 3D grid
         Zs = int(csv_data[0][4])
-        grid_size = M*N
-        angles_size = 7
+        NUM_ARMS = 2
+        ANGLES_SIZE = 7
         csv_data = csv_data[3:] # Skip non-arm-data rows
 
-        location  = np.zeros((grid_size, 3), dtype=np.int16)
-        reachable = np.zeros((2, grid_size), dtype=np.uint8)
-        #config    = np.zeros((2, grid_size, angles_size), dtype=np.float) 
-        config    = np.zeros((2, Zs, grid_size, angles_size), dtype=np.float) 
-        #M = len(set([ int(row[1]) for row in csv_data]))
-        #N = len(set([ int(row[0]) for row in csv_data]))
+        location  = np.zeros((M, N, Z, 3), dtype=np.int16)
+        reachable = np.zeros((NUM_ARMS, M, N, Z), dtype=np.uint8)
+        config    = np.zeros((NUM_ARMS, M, N, Z+1, ANGLES_SIZE), dtype=np.float) #+1 for open/close poses
         idx = 0
         for y in range(N):
-            for x in range(M):
+            for x in range(M-1, -1, -1):
                 # Let's reorganize csv data
                 #
                 #      x      y
@@ -61,64 +57,64 @@ class Robot_YuMi():
                 #  y<--o      o-->x
                 #  csv        Robot
                 #
-                i = (M-1-x) + y*M
                 row = csv_data[idx]
                 idx += 1
 
-                location[i] = [-int(row[1]), int(row[0]), self.z]
-                #reachable[0, i] = 1 if row[10]=='Si' else 0           # valid EE location (left)
-                #reachable[1, i] = 1 if row[2 ]=='Si' else 0           # right
-                reachable[0, i] = int(row[2+10])                       # valid EE location (left)
-                reachable[1, i] = int(row[2 ])                         # right
-                config[0, 0, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
-                config[1, 0, i] = [float(t) for t in row[3:10]]        # right
+                # TODO: update excel format for 3D grid
+                # Physical EE location
+                location[x, y, :] = [-int(row[1]), int(row[0]), 180]
+                # Reachable EE location
+                reachable[0, x, y, :] = int(row[2+10])                    # left
+                reachable[1, x, y, :] = int(row[2])                       # right
+                # Pose (angles)
+                config[0, x, y, :] = [float(t) for t in row[3+10:10+10]]  # left
+                config[1, x, y, :] = [float(t) for t in row[3:10]]        # right
 
-        # Get data for other Zs grids (used when moving up/down)
-        for otherZ in range(Zs - 1):
-            idx += 2 # there are 2 comment lines between blocks
-            for y in range(N):
-                for x in range(M):
-                    # Read Reachable and config for other Zs (used in pick/drop operations)
-                    i  = (M-1-x) + y*M
-                    row = csv_data[idx]
-                    idx += 1
+        # Get data for open/close position
+        idx += 2 # there are 2 comment lines between blocks
+        for y in range(N):
+            for x in range(M-1, -1, -1):
+                # Read Reachable and config for other Zs (used in pick/drop operations)
+                row = csv_data[idx]
+                idx += 1
 
-                    #reachable[0, i] = int(row[2+10])                    # valid EE location (left)
-                    #reachable[1, i] = int(row[2 ])                      # right
-                    config[0, otherZ+1, i] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
-                    config[1, otherZ+1, i] = [float(t) for t in row[3:10]]        # right
+                config[0, x, y, Z] = [float(t) for t in row[3+10:10+10]]  # 7 angles (left)
+                config[1, x, y, Z] = [float(t) for t in row[3:10]]        # right
 
         # 2. Robot collision (distance between arms)
         with open(distanceFilename) as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
             csv_data = [row for i,row in enumerate(csv_reader) if i>=1]
 
-        distance  = np.zeros((grid_size**2,), dtype=np.uint16)
+        distance  = np.zeros((M, N, Z, M, N, Z), dtype=np.uint16)
         idx = 0
         for yl in range(N):
-            for xl in range(M):
+            for xl in range(M-1, -1, -1):
                 for yr in range(N):
-                    for xr in range(M):
+                    for xr in range(M-1, -1, -1):
+                        zl = zr = 0
                         # Again... reorganize csv data
                         row = csv_data[idx]
                         idx += 1
-                        # 'M-1-x' (inverse x) and lowest range for 'xr-yr' according to the excel data organization
-                        i = ((M-1-xl) + yl*M)*M*N + (M-1-xr) + yr*M
 
-                        # Consider any value below 28mm given by RobotStudio as collision
+                        # Consider any value below 29mm given by RobotStudio as collision
                         # For non collision configurations, take the distance between EEs.
-                        robotStudio_distance = int(row[7])*int(float(row[9]))
-                        #if robotStudio_distance == 0:
+                        robotStudio_distance = int(row[7]) * int(float(row[9]))
                         if robotStudio_distance < 29:
-                            distance[i] = 0
+                            dist = 0
                         else:
-                            # Last hour change (to mm)
-                            #distance[i] = int(np.sqrt( (10*(xl-xr))**2 + (10*(yl-yr))**2 )) # units: cm
-                            distance[i] = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 )) # units: cm
-                            #if i == 2491:
-                            #    print(i, xl,yl,xr,yr, distance[i], int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 )) )
-                            #distance[i] = 100
+                            dist = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 + (100*(zl-zr))**2 )) # units: mm
 
+                        # TODO: update excel format for 3D grid
+                        distance[xl,yl,0,xr,yr,0] = dist 
+                        #distance[xl,yl,1,xr,yr,1] = dist 
+                        #distance[xl,yl,2,xr,yr,2] = dist 
+                        #distance[xl,yl,0,xr,yr,1] = 0 # By now, there is no collision between Zs 
+                        #distance[xl,yl,0,xr,yr,2] = 0 
+                        #distance[xl,yl,1,xr,yr,0] = 0 
+                        #distance[xl,yl,1,xr,yr,2] = 0 
+                        #distance[xl,yl,2,xr,yr,0] = 0 
+                        #distance[xl,yl,2,xr,yr,1] = 0 
 
         return M, N, Z, distance, config, reachable, location
 
@@ -129,11 +125,9 @@ class Robot_YuMi():
             assert False, 'OK... not sure if this happens'
             return False
 
-        idx = self._armsPos2idx(armsGridPos)
-        if self.distance[idx] <= self.min_dist:
-            return True
+        (xl,yl,zl),(xr,yr,zr) = armsGridPos
 
-        return False
+        return (self.distance[xl,yl,zl,xr,yr,zr] <= self.min_dist)
 
     #TODO: esto lo he copiado de env_pickplace..mmm dejalo como deberia
     def _armsPos2idx(self, armsPos):
@@ -150,10 +144,11 @@ class Robot_YuMi():
         return x + y*self.M + z*self.M*self.N
 
     def checkValidLocation(self, armsGridPos):
+        return True
         for pos, reach in zip(armsGridPos, self.reachable):
             if pos != [-1,-1,-1]: # Ignore the check if the arm pos is unknown
-                idx = self._xy2idx(pos)
-                if not reach[idx]:
+                x,y,z = pos
+                if not reach[x,y,z]:
                     return False
             else:
                 assert False, 'OK... not sure if this happens in checkValidLocation'
@@ -181,8 +176,9 @@ class Robot_YuMi():
         return self.config
 
 
-    def updateLocation(self, idx, value):
-        self.location[idx] = value
+    def updateLocation(self, armPos, value):
+        x,y,z = armPos
+        self.location[x,y,z] = value
 
 
     def plot(self, phyPos, ax, plt3d):

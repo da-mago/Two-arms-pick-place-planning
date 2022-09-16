@@ -184,8 +184,8 @@ class env_pickplace:
             ## update robot grid
             #print(xy_i, self._xy2idx(xy_i), cfg['start'])
             #print(xy_j, self._xy2idx(xy_j), cfg['end'])
-            self.robot.updateLocation(self._xy2idx(xy_i), cfg['start'])
-            self.robot.updateLocation(self._xy2idx(xy_j), cfg['end'])
+            self.robot.updateLocation(xy_i, cfg['start'])
+            self.robot.updateLocation(xy_j, cfg['end'])
 
         # Pieces current pos
         self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
@@ -309,12 +309,14 @@ class env_pickplace:
 
     def _nearest2DTo(self, item, item_list):
         ''' Find the most similar entry in the item_list (ignore Z) '''
-        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item[0:-1], p[0:-1]))) for p in item_list]
+        locations = item_list[:,:,0,:].reshape((self.M*self.N, 3)) # only grid 2d
+        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item[0:2], p[0:2]))) for p in locations]
         return self._idx2xy(np.argmin(dist))
 
     def _nearestTo(self, item, item_list):
         ''' Find the most similar entry in the item_list '''
-        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in item_list]
+        locations = item_list.reshape((self.M*self.N*self.Z, 3)) 
+        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in locations]
         return self._idx2xy(np.argmin(dist))
 
     def _xy2idx(self, singleArmPos):
@@ -335,9 +337,10 @@ class env_pickplace:
 
     def _logic2phy(self, pos):
         ''' convert logical grid cell pos to physical 3D point
-            [0,1] -> [-1.35, -0.5, 0]
+            [3,3,0] -> [150, 500, 0]
         '''
-        return self.robot.location[ self._xy2idx(pos) ]
+        x,y,z = pos
+        return self.robot.location[x,y,z]
 
     def _phy2logic(self, pos):
         ''' convert physical 3D point to logical grid cell pos
@@ -813,7 +816,8 @@ class env_pickplace:
 
         # Grid
         x,y,z = [],[],[]
-        for xi,yi,zi in self.robot.location:
+        locations = self.robot.location[:,:,0,:].reshape((self.M*self.N, 3))
+        for xi,yi,zi in locations:
             x.append(xi)
             y.append(yi)
             z.append(zi)

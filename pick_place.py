@@ -50,9 +50,9 @@ def showSolution(policy, initial_pos, GIF_filename=None):
         joint_a = robot_mdp._ext2intAction(action)
         print(joint_a, pos, ',', status, ',', pieces_status, ',', pick_pos, i)
         for arm_idx in range(1,-1,-1):
-            idx = robot_mdp._xy2idx(pos[arm_idx])
-            x,y,_       = robot_mdp.robot.location[idx]
-            #arm_config = robot.config[arm_idx, 0,  idx]
+            x,y,z = pos[arm_idx]
+            x,y,_ = robot_mdp.robot.location[x,y,z]
+            #arm_config = robot.config[arm_idx, x,y,z]
             #print("{}, {}, 250".format(y, -x))
         i += 1
 
@@ -78,10 +78,8 @@ def generatePythonPlan(policy, initial_pos, pieces):
     src  = '# Pieces location\n'
     src += 'pieces_location = {}\n\n'.format(pieces)
 
-    #idxs        = [(x + y*robot.M) for x,y in initial_pos]
-    idxs = [robot_mdp._xy2idx(pos) for pos in initial_pos]
-    arms_config = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
-    arms_loc    = [list(robot.location[idx]) for idx in idxs]
+    arms_config = [list(robot.config[i,x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
+    arms_loc    = [list(robot.location[x,y,z]) for x,y,z in initial_pos]
     src += '# Robot init configuration\n'
     src += 'robot_init_cfg = {} # {} -> {}\n\n'.format(arms_config, initial_pos, arms_loc)
 
@@ -102,11 +100,9 @@ def generatePythonPlan(policy, initial_pos, pieces):
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
-        #idxs           = [(x + y*robot.M) for x,y in arms_pos]
-        idxs           = [robot_mdp._xy2idx(pos) for pos in initial_pos]
         # TODO: this function does not take care of different Zs grids
-        arms_config    = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
-        arms_loc       = [list(robot.location[idx]) for idx in idxs]
+        arms_config    = [list(robot.config[i,x,y,z]) for i,(x,y,z) in enumerate(arms_pos)]
+        arms_loc       = [list(robot.location[x,y,z]) for x,y,z in arms_pos]
 
         arms_config = [] # remove arms pose info
         # Hack to add what piece
@@ -140,12 +136,6 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     Z_GRIPPER     = [180, 110]
 
     src  = ''
-    # Initial position
-    #for (pos_x, pos_y) in reversed(initial_pos):
-    #    z = Z_PLANE
-    #    idx = pos_x + pos_y*robot_mdp.M
-    #    x,y,_ = robot.location[idx]
-    #    src += '{} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
     robot = robot_mdp.robot
 
     num_steps = 0
@@ -155,9 +145,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     robot_mdp.reset(next_state)
 
     print("Generating plan ...")
-    #idxs = [(x + y*robot_mdp.M) for (x,y) in initial_pos]
-    idxs = [robot_mdp._xy2idx(pos) for pos in initial_pos]
-    arms_config = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
+    arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
     #for ang in reversed(arms_config):
     #    print(','.join([str(x) for x in ang]))
 
@@ -165,11 +153,10 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     for ang, pos, grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
         # Format:
         #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
-        z = Z_GRIPPER[0]
         src += ','.join([str(x) for x in ang]) 
-        #idx = pos_x + pos_y*robot_mdp.M
-        idx = robot_mdp._xy2idx(pos)
-        x,y,_ = robot.location[idx]
+        x,y,z = pos
+        x,y,_ = robot.location[x,y,z]
+        z = Z_GRIPPER[0]
         src += ',{} # {} {} {}\n'.format(grip, y,-x,z) # Axis conversion for RobotStudio
 
     done = False
@@ -185,7 +172,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
 
         # Register plan
         arms_pos, _, _, pick_pos = robot_mdp._ext2intState(next_state)
-        idxs = []
+        poss = []
         zs   = []
         z_plane = []
         gripper_action = []
@@ -204,8 +191,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
             else:
                 pos = a_pos
                 tmp_p_pos = 0
-            #idxs.append(x + y*robot_mdp.M)
-            idxs.append(robot_mdp._xy2idx(pos))
+            poss.append(pos)
             # Go down, up, open, close gripper
             #print('d', a_a, tmp_p_pos, robot_mdp.P)
             #                                                     opened/closed           Z                arm Zcomment (grip action)        
@@ -226,8 +212,8 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
 #            elif tmp_p_pos == robot_mdp.P/2 + 1:        zs.append(Z_GRIPPER); z_plane.append(1)
 #            else:                                       zs.append(Z_UP);      z_plane.append(0)
             
-        arms_config    = [list(robot.config[i, gblock, idx]) for i,(idx,gblock) in enumerate(zip(idxs, z_plane))]
-        arms_loc       = [list(robot.location[idx]) for idx in idxs]
+        arms_config    = [list(robot.config[i, x,y,(z if gblock == 0 else robot.Z)]) for i,((x,y,z),gblock) in enumerate(zip(poss, z_plane))]
+        arms_loc       = [list(robot.location[x,y,z]) for x,y,z in poss]
         #print(arms_loc)
 
         #for ang in reversed(arms_config):
@@ -273,9 +259,8 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     #print('#')
     #print('###############################################')
     #print('')
-    #idxs           = [(x + y*robot.M) for x,y in initial_pos]
-    arms_config    = [list(robot.config[i, 0, idx]) for i,idx in enumerate(idxs)]
-    arms_loc       = [list(robot.location[idx]) for idx in idxs]
+    arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
+    arms_loc    = [list(robot.location[x,y,z]) for x,y,z in initial_pos]
     #print('# Init robot location')
     #print('init_grid_pos = {} # Grid location'.format(initial_pos))
     #print('init_xyz_pos  = {} # XYZ location (EE)'.format(arms_loc))
@@ -458,20 +443,20 @@ if __name__ == "__main__":
         ## 2-3 (then 1-4)  24 + 24 = 48
         ## 2-4 (then 1-3)  24 + 26 = 50
         ## 3-4 (then 1-2)  27 + 23 = 50
-        #pieces = [
-        #          {'start' : [-250, 300, 0],  # Piece 1
-        #           'end'   : [ 250, 500, 0],
-        #          },
-        #          {'start' : [-250, 500, 0],  # Piece 2
-        #           'end'   : [ 350, 200, 0],
-        #          },                     
-        #          #{'start' : [-350, 300, 0],  # Piece 3
-        #          # 'end'   : [ 150, 500, 0],
-        #          #},                     
-        #          #{'start' : [-150, 300, 0],  # Piece 4
-        #          # 'end'   : [ 150, 600, 0],
-        #          #}
-        #          ]
+        pieces = [
+                  {'start' : [-250, 300, 0],  # Piece 1
+                   'end'   : [ 250, 500, 0],
+                  },
+                  {'start' : [-250, 500, 0],  # Piece 2
+                   'end'   : [ 350, 200, 0],
+                  },                     
+                  #{'start' : [-350, 300, 0],  # Piece 3
+                  # 'end'   : [ 150, 500, 0],
+                  #},                     
+                  #{'start' : [-150, 300, 0],  # Piece 4
+                  # 'end'   : [ 150, 600, 0],
+                  #}
+                  ]
 
         #    # Debug: Fixed arms position
         #    #    500 50      600 -250    left, right
