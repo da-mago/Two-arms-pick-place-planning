@@ -309,15 +309,28 @@ class env_pickplace:
 
     def _nearest2DTo(self, item, item_list):
         ''' Find the most similar entry in the item_list (ignore Z) '''
-        locations = item_list[:,:,0,:].reshape((self.M*self.N, 3)) # only grid 2d
-        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item[0:2], p[0:2]))) for p in locations]
-        return self._idx2xy(np.argmin(dist))
+        dist_min = 100000
+
+        for x in range(self.M):
+            for y in range(self.N):
+                dist = sum( (a - b)**2 for a, b in zip(item[0:2], item_list[x,y,0][0:2]))
+                if dist <= dist_min:
+                    dist_min = dist
+                    pos = [x,y,0]
+        return pos
 
     def _nearestTo(self, item, item_list):
         ''' Find the most similar entry in the item_list '''
-        locations = item_list.reshape((self.M*self.N*self.Z, 3)) 
-        dist = [ np.sqrt(sum( (a - b)**2 for a, b in zip(item, p))) for p in locations]
-        return self._idx2xy(np.argmin(dist))
+        dist_min = 100000
+
+        for x in range(self.M):
+            for y in range(self.N):
+                for z in range(self.Z):
+                    dist = sum( (a - b)**2 for a, b in zip(item, item_list[x,y,z]))
+                    if dist <= dist_min:
+                        dist_min = dist
+                        pos = [x,y,z]
+        return pos
 
     def _xy2idx(self, singleArmPos):
         ''' xy grid pos to index '''
