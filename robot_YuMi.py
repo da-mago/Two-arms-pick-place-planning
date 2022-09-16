@@ -23,6 +23,27 @@ class Robot_YuMi():
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v5.csv')    
         self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
 
+        for x in range(10):
+          for y in range(5):
+            print(self.location[x,y,0])
+
+        for x in range(10):
+          for y in range(5):
+            print(self.reachable[1,x,y,0])
+
+        for x in range(10):
+          for y in range(5):
+            print(self.reachable[1,x,y,0])
+
+        for x in range(10):
+          for y in range(5):
+            for x2 in range(10):
+              for y2 in range(5):
+                print(self.distance[x,y,0,x2,y2,0])
+
+        import sys
+        sys.exit()
+
 
     def _loadCSV(self, distanceFilename, configFilename):
         ''' Read and process robot data from csv file '''
