@@ -66,13 +66,19 @@ class mdp_solver():
     
         VA = rewards + discount_factor*V[states]
 
-        one_arm = [7*x+6 for x in range(6)] + [7*6+x for x in range(6)]
-        two_arm = [7*x+y for x in range(6) for y in range(6)]
-        all_arm = np.array(one_arm + two_arm)
+        NUM_ACTION = 9
+        ACTION_STAY = 8
+        y = ACTION_STAY
+        left_arm  = [NUM_ACTION*x + y for x in range(ACTION_STAY)]
+        x = ACTION_STAY
+        right_arm = [NUM_ACTION*x + y for y in range(ACTION_STAY)]
+        two_arm   = [NUM_ACTION*x + y for x in range(ACTION_STAY) for y in range(ACTION_STAY)]
+        all_arm = np.array(left_arm + right_arm + two_arm)
         VA2 = np.zeros_like(VA)
-        #print(one_arm, two_arm, all_arm, VA2.shape)
-        VA2[:, 0:len(one_arm)] = VA[:, one_arm]
-        VA2[:, len(one_arm):]  = VA[:, two_arm]
+        #print(left_arm, right_arm, two_arm, all_arm, VA2.shape)
+        VA2[:, 0:len(left_arm)] = VA[:, left_arm]
+        VA2[:, len(left_arm):len(left_arm + right_arm)] = VA[:, right_arm]
+        VA2[:, len(left_arm + right_arm):]  = VA[:, two_arm]
 
         policy = all_arm[np.argmax(VA2, axis=1)]
 #        policy = np.argmax(VA, axis=1)

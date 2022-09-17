@@ -99,7 +99,7 @@ class mdp_generator(env_pickplace):
     def update(self):
         ''' Update MDP for a specific configuration of pieces '''
     
-        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]]) # right, left, down, up
+        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,-1],[0,0,1]]) # left, rigth, back, fron, down, up
     
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
@@ -187,12 +187,12 @@ class mdp_generator(env_pickplace):
                                     pick_pos_2 = 0
                                 else:
                                     pos_2 = [-1, -1, -1] # undefined
-                                    pick_pos_2 = xyzp_2 + 1 - (self.M * self.N)
+                                    pick_pos_2 = xyzp_2 + 1 - (self.M * self.N * self.Z)
     
                                 # Get internal scalar state representation (from internal state vars)
                                 if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
                                 else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
-    
+     
                                 # Check valid state
                                 if state not in states_idx:
                                     continue
@@ -208,7 +208,7 @@ class mdp_generator(env_pickplace):
                                 if USE_IMPLEMENTED_STEP_FUNCTION == 0:
                                     if status == 0:
                                         # Pick
-                                        a = 4
+                                        a = self.ACTION_PICK
                                         #TODO este trozo probablemente habra que borrarlo si pick_pos_1 es 0 siempre
                                         if reduced_pp_1 >= self.P or debug==True:
                                             next_pick_pos_1 = 0
@@ -219,7 +219,7 @@ class mdp_generator(env_pickplace):
                                             next_status = status
                                     else:
                                         # Drop
-                                        a = 5
+                                        a = self.ACTION_DROP
                                         #TODO este trozo probablemente habra que borrarlo si pick_pos_1 es 0 siempre
                                         if reduced_pp_1 >= self.P or debug==True:
                                             next_status = 0
@@ -229,7 +229,7 @@ class mdp_generator(env_pickplace):
                                             next_pick_pos_1 = reduced_pp_1 + 1 + self.P*i # Range 0..K*P
                                     
                                 # Taking action
-                                a = 4 if status == 0 else 5 # Fix-arm action
+                                a = self.ACTION_PICK if status == 0 else self.ACTION_DROP # Fix-arm action
     
                                 for a_2 in range(self.single_nA): # Other_arm action
     
@@ -271,8 +271,9 @@ class mdp_generator(env_pickplace):
                                             continue
     
                                         pos2 = list(pos_2 + offset_a[a_2])
+                                        if not self._isArmsGridPosValid2(pos2):
                                         # TODO cambiar esto por funcion existetne que ya lo chequea
-                                        if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N or pos2[2] >= self.Z or pos2[2] < 0:
+                                        #if pos2[0] >= self.M or pos2[0] < 0 or pos2[1] < 0 or pos2[1] >= self.N or pos2[2] >= self.Z or pos2[2] < 0:
                                             continue
                                     else:
                                         pos2 = pos_2
@@ -358,7 +359,7 @@ class mdp_generator(env_pickplace):
                                         continue
     
                                     if (np.sum(next_pieces_status) + np.sum([next_status, next_status_2])) == 0: reward = 10000 #TODO algo raro pasa...con 200 no va y con 100 va mas o menos
-                                    elif a_2 == 6:                                                               reward = -1 # 1 arm
+                                    elif a_2 == self.ACTION_STAY:                                                reward = -1 # 1 arm
                                     else:                                                                        reward = -1 # 2 arms
     
                                     #print(self._ext2intState(state))

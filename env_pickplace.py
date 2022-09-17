@@ -155,8 +155,17 @@ class env_pickplace:
         self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
 
         # Action space size: 
-        self.single_nA = 7
+        self.single_nA = 9
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
+        self.ACTION_LEFT  = 0
+        self.ACTION_RIGHT = 1
+        self.ACTION_BACK  = 2
+        self.ACTION_FRONT = 3
+        self.ACTION_DOWN  = 4
+        self.ACTION_UP    = 5
+        self.ACTION_PICK  = 6
+        self.ACTION_DROP  = 7
+        self.ACTION_STAY  = 8
 
         # Pieces locations are also mapped to the same robot 2D grid (even if
         # the real piece position does not match the 2D grid point)
@@ -423,7 +432,7 @@ class env_pickplace:
         piece = 0
         valid = False
 
-        if arm_status == 0: # arm empty
+        if arm_status == 0 and arm_grid_pos[2] == 0: # arm empty in Z=0 grid
             if pick_pos > 0:
                 # arm_pos unknown when pick_pos>0
                 piece = (pick_pos - 1) // self.P
@@ -448,7 +457,7 @@ class env_pickplace:
         piece_status = 0
         valid = False
 
-        if arm_status > 0:
+        if arm_status > 0 and arm_grid_pos[2] == 0:
             piece = arm_status - 1
 
             if pick_pos > 0:
@@ -616,8 +625,9 @@ class env_pickplace:
             joint_a = self._ext2intAction(action)
             for i,a in enumerate(joint_a):
                 # Pick/drop
-                if ((a == 4) and (self.armsStatus[i] == 0)) or (((a == 5) and (self.armsStatus[i] > 0))):
-                   if (self.pickPos[i] > 0  and self.armsGridPos[i] != self.T_pos) or \
+                if ((a == self.ACTION_PICK) and (self.armsStatus[i] == 0)) or (((a == self.ACTION_DROP) and (self.armsStatus[i] > 0))):
+                   if (self.armsGridPos[i][2] == 0) or \
+                      (self.pickPos[i] > 0  and self.armsGridPos[i] != self.T_pos) or \
                       (self.pickPos[i] == 0 and self.armsGridPos[i] != self.T_pos): # actually, intermediate position can be processed
                        # Add special mark in the reward function
                        # This state-action pair will be resolved when pieces position is known (later with update() function)
@@ -651,7 +661,7 @@ class env_pickplace:
         move_both_arms       = True 
 
         # helper for adjacent moves
-        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]]) # rigth, left, down, up
+        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,-1],[0,0,1]]) # left, rigth, back, fron, down, up
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)
@@ -659,8 +669,8 @@ class env_pickplace:
 
             pos = pos_arg[:] # Dont want to directly modify a for-loop argument
 
-            # Move (right/left/down/up)
-            if a < 4:
+            # Move (left/right/back/front/down/up)
+            if a < self.ACTION_PICK:
                 if pick_pos > 0:
                     valid_state = False # pick/drop operation only allows pick/drop actions
                     break
@@ -678,14 +688,14 @@ class env_pickplace:
 
             # pick or place
             #
-            elif a == 4 or a == 5:
+            elif a == self.ACTION_PICK or a == self.ACTION_DROP:
 
                 # Remind that pick_pos is 0..K*P (piece 1: 1..P, pieces 2: P+1..2P, ...)
                 if pick_pos > 0: reduced_pick_pos = ((pick_pos - 1) % self.P) + 1
                 else:            reduced_pick_pos = 0
 
                 # pick up
-                if a == 4:
+                if a == self.ACTION_PICK:
                     valid_state, piece_idx = self._isPickUpActionValid(pos, arm_status, self.piecesStatus, pick_pos)
                     if valid_state:
                         if reduced_pick_pos >= self.P:
@@ -704,7 +714,7 @@ class env_pickplace:
                         break # Nothing to pick up
 
                 # drop off
-                elif a == 5:
+                elif a == self.ACTION_DROP:
                     valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, self.piecesStatus, pick_pos)
                     if valid_state:
                         if reduced_pick_pos >= self.P:

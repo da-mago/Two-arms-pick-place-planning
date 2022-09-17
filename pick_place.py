@@ -96,7 +96,7 @@ def generatePythonPlan(policy, initial_pos, pieces):
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Register plan
-        a_name         = ['Left ', 'Right', 'Down ', 'Up   ', 'Pick ', 'Drop ', 'Stay ']
+        a_name         = ['Left ', 'Right', 'back ', 'front', 'Down ', 'Up   ', 'Pick ', 'Drop ', 'Stay ']
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
@@ -107,8 +107,8 @@ def generatePythonPlan(policy, initial_pos, pieces):
         arms_config = [] # remove arms pose info
         # Hack to add what piece
         for i,a in enumerate(arms_action):
-            if a == 4 or a == 5:
-                p = robot_mdp.armsStatus[i] if a == 4 else previous_armsStatus[i]
+            if a == robot_mdp.ACTION_PICK or a == robot_mdp.ACTION_DROP :
+                p = robot_mdp.armsStatus[i] if a == robot_mdp.ACTION_PICK else previous_armsStatus[i]
                 if robot_mdp.pickPos[i] > 0: piece = ((robot_mdp.pickPos[i] - 1) // robot_mdp.P) + 1
                 else:                        piece = p
                 a_names[i] += 'P{}'.format(piece) + ("I" if robot_mdp.armsGridPos[i] == robot_mdp.T_pos else " ")
@@ -182,7 +182,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
-                if a_a == 4:
+                if a_a == robot_mdp.ACTION_PICK:
                     pos = robot_mdp.piecesLocation['start'][tmp]
                 else:
                     pos = robot_mdp.piecesLocation['end'][tmp]
@@ -196,18 +196,22 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
             #print('d', a_a, tmp_p_pos, robot_mdp.P)
             #                                                     opened/closed           Z                arm Zcomment (grip action)        
             if tmp_p_pos == 0:
-                if a_a == 4 or a_a == 5:                                           z_plane.append(0);  gripper_action.append(GRIPPER_UP)
+                if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);  gripper_action.append(GRIPPER_UP)
                 else:                                                              z_plane.append(0);  gripper_action.append(GRIPPER_XY)
             elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);  gripper_action.append(GRIPPER_DOWN)
-            elif (tmp_p_pos == robot_mdp.P/2 + 1) and a_a == 4:   gripper[i] = 1;  z_plane.append(1);  gripper_action.append(GRIPPER_CLOSE)
+            elif (tmp_p_pos == robot_mdp.P/2 + 1) and \
+                  a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);  gripper_action.append(GRIPPER_CLOSE)
             elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);  gripper_action.append(GRIPPER_OPEN)
             else:                                                                  z_plane.append(1);  gripper_action.append(GRIPPER_UP)
             #print('c', gripper_action)
             # Z value
 #            if tmp_p_pos == 0:
-#                if a_a == 4 or a_a == 5:                zs.append(Z_UP);      z_plane.append(1)
+#                if a_a == robot_mdp.ACTION_PICK  or \
+#                   a_a == robot_mdp.ACTION_DROP:        zs.append(Z_UP);      z_plane.append(1)
 #                else:                                   zs.append(Z_PLANE);   z_plane.append(0)
-#            if tmp_p_pos == 0 and a_a != 4 and a_a !=5: zs.append(Z_DOWN);   z_plane.append(0)
+#            if tmp_p_pos == 0 and \
+#               a_a != robot_mdp.ACTION_PICK and \
+#               a_a != robot_mdp.ACTION_DROP:            zs.append(Z_DOWN);    z_plane.append(0)
 #            elif tmp_p_pos < (robot_mdp.P/2 + 1):       zs.append(Z_DOWN);    z_plane.append(1)
 #            elif tmp_p_pos == robot_mdp.P/2 + 1:        zs.append(Z_GRIPPER); z_plane.append(1)
 #            else:                                       zs.append(Z_UP);      z_plane.append(0)

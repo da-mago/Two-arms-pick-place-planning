@@ -36,7 +36,7 @@ class Robot_YuMi():
 
         M  = int(csv_data[0][1])
         N  = int(csv_data[0][2])
-        Z  = 1 # pending to new excel format for 3D grid
+        Z  = 3 # pending to new excel format for 3D grid
         Zs = int(csv_data[0][4])
         NUM_ARMS = 2
         ANGLES_SIZE = 7
@@ -106,14 +106,18 @@ class Robot_YuMi():
 
                         # TODO: update excel format for 3D grid
                         distance[xl,yl,0,xr,yr,0] = dist 
-                        #distance[xl,yl,1,xr,yr,1] = dist 
-                        #distance[xl,yl,2,xr,yr,2] = dist 
-                        #distance[xl,yl,0,xr,yr,1] = 0 # By now, there is no collision between Zs 
-                        #distance[xl,yl,0,xr,yr,2] = 0 
-                        #distance[xl,yl,1,xr,yr,0] = 0 
-                        #distance[xl,yl,1,xr,yr,2] = 0 
-                        #distance[xl,yl,2,xr,yr,0] = 0 
-                        #distance[xl,yl,2,xr,yr,1] = 0 
+                        if Z > 1:
+                            distance[xl,yl,1,xr,yr,1] = dist 
+                        if Z > 2:
+                            distance[xl,yl,2,xr,yr,2] = dist 
+                        if Z > 1:
+                            distance[xl,yl,0,xr,yr,1] = 100 # By now, there is no collision between Zs 
+                            distance[xl,yl,1,xr,yr,0] = 100 
+                        if Z > 2:
+                            distance[xl,yl,0,xr,yr,2] = 100 
+                            distance[xl,yl,1,xr,yr,2] = 100 
+                            distance[xl,yl,2,xr,yr,0] = 100 
+                            distance[xl,yl,2,xr,yr,1] = 100 
 
         return M, N, Z, distance, config, reachable, location
 
