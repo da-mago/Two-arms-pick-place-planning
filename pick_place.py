@@ -100,7 +100,6 @@ def generatePythonPlan(policy, initial_pos, pieces):
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
-        # TODO: this function does not take care of different Zs grids
         arms_config    = [list(robot.config[i,x,y,z]) for i,(x,y,z) in enumerate(arms_pos)]
         arms_loc       = [list(robot.location[x,y,z]) for x,y,z in arms_pos]
 
@@ -461,6 +460,15 @@ if __name__ == "__main__":
                   # 'end'   : [ 150, 600, 0],
                   #}
                   ]
+        # intercambiando posicion inicio y fin de pieza 2...ahora en 3D sale mejor
+        #pieces = [ 
+        #          {'start' : [-250, 300, 0],  # Piece 1
+        #           'end'   : [ 250, 500, 0],
+        #          },
+        #          {'end' : [-250, 500, 0],  # Piece 2
+        #           'start'   : [ 350, 200, 0],
+        #          },                     
+        #          ]
 
         #    # Debug: Fixed arms position
         #    #    500 50      600 -250    left, right
