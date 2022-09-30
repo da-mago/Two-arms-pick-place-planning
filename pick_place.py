@@ -446,20 +446,20 @@ if __name__ == "__main__":
         ## 2-3 (then 1-4)  24 + 24 = 48
         ## 2-4 (then 1-3)  24 + 26 = 50
         ## 3-4 (then 1-2)  27 + 23 = 50
-        pieces = [
-                  {'start' : [-250, 300, 0],  # Piece 1
-                   'end'   : [ 250, 500, 0],
-                  },
-                  {'start' : [-250, 500, 0],  # Piece 2
-                   'end'   : [ 350, 200, 0],
-                  },                     
-                  #{'start' : [-350, 300, 0],  # Piece 3
-                  # 'end'   : [ 150, 500, 0],
-                  #},                     
-                  #{'start' : [-150, 300, 0],  # Piece 4
-                  # 'end'   : [ 150, 600, 0],
-                  #}
-                  ]
+        #pieces = [
+        #          {'start' : [-250, 300, 0],  # Piece 1
+        #           'end'   : [ 250, 500, 0],
+        #          },
+        #          {'start' : [-250, 500, 0],  # Piece 2
+        #           'end'   : [ 350, 200, 0],
+        #          },                     
+        #          #{'start' : [-350, 300, 0],  # Piece 3
+        #          # 'end'   : [ 150, 500, 0],
+        #          #},                     
+        #          #{'start' : [-150, 300, 0],  # Piece 4
+        #          # 'end'   : [ 150, 600, 0],
+        #          #}
+        #          ]
         # intercambiando posicion inicio y fin de pieza 2...ahora en 3D sale mejor
         #pieces = [ 
         #          {'start' : [-250, 300, 0],  # Piece 1

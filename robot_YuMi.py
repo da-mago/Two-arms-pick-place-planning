@@ -40,12 +40,12 @@ class Robot_YuMi():
         N  = int(csv_data[0][2])
         Z  = int(csv_data[0][3])
         NUM_ARMS = 2
-        ANGLES_SIZE = 7
+        NUM_ANGLES = 7
         csv_data = csv_data[3:] # Skip non-arm-data rows
 
         location  = np.zeros((M, N, Z, 3), dtype=np.int16)
         reachable = np.zeros((NUM_ARMS, M, N, Z), dtype=np.uint8)
-        config    = np.zeros((NUM_ARMS, M, N, Z+1, ANGLES_SIZE), dtype=np.float) #+1 for open/close poses
+        config    = np.zeros((NUM_ARMS, M, N, Z+1, NUM_ANGLES), dtype=np.float) #+1 for open/close poses
         idx = 0
         for z in range(Z+1):
             for y in range(N):
@@ -62,18 +62,23 @@ class Robot_YuMi():
                     idx += 1
 
                     # Excel format (first, open/close plane (z=0), then grid 3D)
+                    cfg_l = 4  # index in the line (comma separated)
+                    cfg_r = 15 
+                    reach_l = 3
+                    reach_r = 14
                     if z == 0:
-                        config[0, x, y, Z] = [float(t) for t in row[3+10:10+10]]  # left
-                        config[1, x, y, Z] = [float(t) for t in row[3:10]]        # right
+                        config[0, x, y, Z] = [float(t) for t in row[cfg_r : cfg_r + NUM_ANGLES]]  # left
+                        config[1, x, y, Z] = [float(t) for t in row[cfg_l : cfg_l + NUM_ANGLES]]  # right
+
                     else:
                         # Physical EE location
-                        location[x, y, z-1] = [-int(row[1]), int(row[0]), 180]
+                        location[x, y, z-1] = [-int(row[1]), int(row[0]), int(row[2])]
                         # Reachable EE location
-                        reachable[0, x, y, z-1] = int(row[2+10])                    # left
-                        reachable[1, x, y, z-1] = int(row[2])                       # right
+                        reachable[0, x, y, z-1] = int(row[reach_r]) # left
+                        reachable[1, x, y, z-1] = int(row[reach_l]) # right
                         # Pose (angles)
-                        config[0, x, y, z-1] = [float(t) for t in row[3+10:10+10]]  # left
-                        config[1, x, y, z-1] = [float(t) for t in row[3:10]]        # right
+                        config[0, x, y, z-1] = [float(t) for t in row[cfg_r : cfg_r + NUM_ANGLES]]  # left
+                        config[1, x, y, z-1] = [float(t) for t in row[cfg_l : cfg_l + NUM_ANGLES]]  # right
 
 
         # 2. Robot collision (distance between arms)
