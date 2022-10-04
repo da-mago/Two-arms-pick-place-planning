@@ -102,8 +102,10 @@ class Robot_YuMi():
 
                                 # Consider any value below 29mm given by RobotStudio as collision
                                 # For non collision configurations, take the distance between EEs.
-                                robotStudio_distance = int(row[6]) * int(float(row[7]))
-                                if robotStudio_distance < 29:
+                                #robotStudio_distance = int(row[6]) * int(float(row[7]))
+                                #if robotStudio_distance < 29:
+                                robotStudio_distance = int(row[6]) 
+                                if robotStudio_distance == 0:
                                     dist = 0
                                 else:
                                     dist = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 + (100*(zl-zr))**2 )) # units: mm
