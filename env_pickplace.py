@@ -155,17 +155,23 @@ class env_pickplace:
         self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
 
         # Action space size: 
-        self.single_nA = 9
-        self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
         self.ACTION_LEFT  = 0
         self.ACTION_RIGHT = 1
         self.ACTION_BACK  = 2
         self.ACTION_FRONT = 3
         self.ACTION_DOWN  = 4
         self.ACTION_UP    = 5
-        self.ACTION_PICK  = 6
-        self.ACTION_DROP  = 7
-        self.ACTION_STAY  = 8
+        self.ACTION_LEFT_FRONT  = 6
+        self.ACTION_LEFT_BACK   = 7
+        self.ACTION_RIGHT_FRONT = 8
+        self.ACTION_RIGHT_BACK  = 9
+        self.ACTION_PICK  = 10 
+        self.ACTION_DROP  = 11 
+        self.ACTION_STAY  = 12 
+        self.LAST_ACTION  = self.ACTION_STAY 
+
+        self.single_nA =self.LAST_ACTION + 1
+        self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
 
         # Pieces locations are also mapped to the same robot 2D grid (even if
         # the real piece position does not match the 2D grid point)
@@ -661,7 +667,17 @@ class env_pickplace:
         move_both_arms       = True 
 
         # helper for adjacent moves
-        offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,-1],[0,0,1]]) # left, rigth, back, fron, down, up
+        offset_a = np.array([[ 1, 0, 0], # Left
+                             [-1, 0, 0], # Right
+                             [ 0, 1, 0], # Back
+                             [ 0,-1, 0], # Front
+                             [ 0, 0,-1], # Down
+                             [ 0, 0, 1], # Up
+                             [ 1,-1, 0], # Left-Front
+                             [ 1, 1, 0], # Left-Back
+                             [-1,-1, 0], # Right-Front
+                             [-1, 1, 0], # Right-Back
+                            ]) # left, rigth, back, fron, down, up
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)

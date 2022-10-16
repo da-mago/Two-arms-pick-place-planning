@@ -66,8 +66,8 @@ class mdp_solver():
     
         VA = rewards + discount_factor*V[states]
 
-        NUM_ACTION = 9
-        ACTION_STAY = 8
+        NUM_ACTION = 13
+        ACTION_STAY = 12
         y = ACTION_STAY
         left_arm  = [NUM_ACTION*x + y for x in range(ACTION_STAY)]
         x = ACTION_STAY

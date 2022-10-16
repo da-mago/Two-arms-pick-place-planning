@@ -96,7 +96,9 @@ def generatePythonPlan(policy, initial_pos, pieces):
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Register plan
-        a_name         = ['Left ', 'Right', 'back ', 'front', 'Down ', 'Up   ', 'Pick ', 'Drop ', 'Stay ']
+        a_name         = ['Left ', 'Right', 'back ', 'front', 'Down ',
+                          'LFron', 'LBack', 'RFron', 'RBack',
+                          'Up   ', 'Pick ', 'Drop ', 'Stay ']
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
@@ -461,6 +463,44 @@ if __name__ == "__main__":
         #          #}
         #          ]
         # intercambiando posicion inicio y fin de pieza 2...ahora en 3D sale mejor
+        #pieces = [ 
+        #          {'start' : [-250, 300, 0],  # Piece 1
+        #           'end'   : [ 250, 500, 0],
+        #          },
+        #          {'end' : [-250, 500, 0],  # Piece 2
+        #           'start'   : [ 350, 200, 0],
+        #          },                     
+        #          ]
+
+        pieces = [ 
+                  {'start' : [ 250, 400, 0],  # Piece 1
+                   'end'   : [-450, 200, 0],
+                  },                     
+                  {'start' : [ 50,  600, 0],  # Piece 2
+                   'end'   : [-50,  200, 0],
+                  },                     
+                  {'start' : [-350, 200, 0],  # Piece 3
+                   'end'   : [ 450, 300, 0],
+                  },                     
+                  {'start' : [ -50, 600, 0],  # Piece 4
+                   'end'   : [  50, 200, 0],
+                  }
+                  ]
+        pieces = [
+                  {'start' : [ -350, 200, 0],  # Piece 1
+                   'end'   : [ 450, 300, 0],
+                  },
+                  {'start' : [ 50,  600, 0],  # Piece 2
+                   'end'   : [-50,  200, 0],
+                  },
+                  {'start' : [ 250, 400, 0],  # Piece 3
+                   'end'   : [ -450, 200, 0],
+                  },
+                  {'start' : [ -50, 600, 0],  # Piece 4
+                   'end'   : [  50, 200, 0],
+                  }
+                  ]
+
         #pieces = [ 
         #          {'start' : [-250, 300, 0],  # Piece 1
         #           'end'   : [ 250, 500, 0],
