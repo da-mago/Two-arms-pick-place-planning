@@ -96,9 +96,15 @@ def generatePythonPlan(policy, initial_pos, pieces):
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Register plan
-        a_name         = ['Left ', 'Right', 'back ', 'front', 'Down ',
-                          'LFron', 'LBack', 'RFron', 'RBack',
-                          'Up   ', 'Pick ', 'Drop ', 'Stay ']
+        a_name = ['Left            ', 'Right           ', 'Back            ', 'Front           ',
+                  'Down            ', 'Up              ',
+                  'Left_Front      ', 'Right_Front     ', 'Right_Back      ', 'Left_Back       ',
+                  'Up_Left         ', 'Up_Left_Front   ', 'Up_Front        ', 'Up_Right_Front  ',
+                  'Up_Right        ', 'Up_Right_Back   ', 'Up_Back         ', 'Up_Left_Back    ',
+                  'Down_Left       ', 'Down_Left_Front ', 'Down_Front      ', 'Down_Right_Front',
+                  'Down_Right      ', 'Down_Right_Back ', 'Down_Back       ', 'Down_Left_Back  ',
+                  'Pick            ', 'Drop            ', 'Stay            ']
+
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
         arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)

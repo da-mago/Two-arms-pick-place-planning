@@ -155,20 +155,36 @@ class env_pickplace:
         self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
 
         # Action space size: 
-        self.ACTION_LEFT  = 0
-        self.ACTION_RIGHT = 1
-        self.ACTION_BACK  = 2
-        self.ACTION_FRONT = 3
-        self.ACTION_DOWN  = 4
-        self.ACTION_UP    = 5
-        self.ACTION_LEFT_FRONT  = 6
-        self.ACTION_LEFT_BACK   = 7
-        self.ACTION_RIGHT_FRONT = 8
-        self.ACTION_RIGHT_BACK  = 9
-        self.ACTION_PICK  = 10 
-        self.ACTION_DROP  = 11 
-        self.ACTION_STAY  = 12 
-        self.LAST_ACTION  = self.ACTION_STAY 
+        self.ACTION_LEFT             = 0
+        self.ACTION_RIGHT            = 1
+        self.ACTION_BACK             = 2
+        self.ACTION_FRONT            = 3
+        self.ACTION_DOWN             = 4
+        self.ACTION_UP               = 5
+        self.ACTION_LEFT_FRONT       = 6
+        self.ACTION_LEFT_BACK        = 7
+        self.ACTION_RIGHT_FRONT      = 8
+        self.ACTION_RIGHT_BACK       = 9
+        self.ACTION_UP_LEFT          = 10
+        self.ACTION_UP_LEFT_FRONT    = 11
+        self.ACTION_UP_FRONT         = 12
+        self.ACTION_UP_RIGHT_FRONT   = 13
+        self.ACTION_UP_RIGHT         = 14
+        self.ACTION_UP_RIGHT_BACK    = 15
+        self.ACTION_UP_BACK          = 16
+        self.ACTION_UP_LEFT_BACK     = 17
+        self.ACTION_DOWN_LEFT        = 18
+        self.ACTION_DOWN_LEFT_FRONT  = 19
+        self.ACTION_DOWN_FRONT       = 20
+        self.ACTION_DOWN_RIGHT_FRONT = 21
+        self.ACTION_DOWN_RIGHT       = 22
+        self.ACTION_DOWN_RIGHT_BACK  = 23
+        self.ACTION_DOWN_BACK        = 24
+        self.ACTION_DOWN_LEFT_BACK   = 25
+        self.ACTION_PICK             = 26
+        self.ACTION_DROP             = 27
+        self.ACTION_STAY             = 28
+        self.LAST_ACTION             = self.ACTION_STAY 
 
         self.single_nA =self.LAST_ACTION + 1
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
@@ -674,9 +690,25 @@ class env_pickplace:
                              [ 0, 0,-1], # Down
                              [ 0, 0, 1], # Up
                              [ 1,-1, 0], # Left-Front
-                             [ 1, 1, 0], # Left-Back
                              [-1,-1, 0], # Right-Front
                              [-1, 1, 0], # Right-Back
+                             [ 1, 1, 0], # Left-Back
+                             [ 1, 0, 1], # Up-Left
+                             [ 1,-1, 1], # Up-Left-Front
+                             [ 0,-1, 1], # Up-Front
+                             [-1,-1, 1], # Up-Right-Front
+                             [-1, 0, 1], # Up-Right
+                             [-1, 1, 1], # Up-Right-Back
+                             [ 0, 1, 1], # Up-Back
+                             [ 1, 1, 1], # Up-Left-Back
+                             [ 1, 0,-1], # Down-Left
+                             [ 1,-1,-1], # Down-Left-Front
+                             [ 0,-1,-1], # Down-Front
+                             [-1,-1,-1], # Down-Right-Front
+                             [-1, 0,-1], # Down-Right
+                             [-1, 1,-1], # Down-Right-Back
+                             [ 0, 1,-1], # Down-Back
+                             [ 1, 1,-1], # Down-Left-Back
                             ]) # left, rigth, back, fron, down, up
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
