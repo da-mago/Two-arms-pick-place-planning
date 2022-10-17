@@ -10,8 +10,9 @@ class mdp_solver():
         - 2: Dijkstra
     '''
 
-    def __init__(self, MDP):
+    def __init__(self, MDP, single_nA):
         self.MDP = MDP
+        self.single_nA = single_nA
 
     def solve(self, algorithm=0):
 
@@ -66,8 +67,8 @@ class mdp_solver():
     
         VA = rewards + discount_factor*V[states]
 
-        NUM_ACTION = 29
-        ACTION_STAY = 28
+        NUM_ACTION = self.single_nA
+        ACTION_STAY = NUM_ACTION - 1
         y = ACTION_STAY
         left_arm  = [NUM_ACTION*x + y for x in range(ACTION_STAY)]
         x = ACTION_STAY

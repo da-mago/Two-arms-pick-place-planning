@@ -87,6 +87,10 @@ class env_pickplace:
                 env.step(env.action_space.sample()) # take a random action
             env.close()
     '''
+    enable_2D_diag = True
+    enable_3D_diag = True
+
+
     def __init__(self, robot, pieces_cfg):
 
         #
@@ -161,32 +165,38 @@ class env_pickplace:
         self.ACTION_FRONT            = 3
         self.ACTION_DOWN             = 4
         self.ACTION_UP               = 5
-        self.ACTION_LEFT_FRONT       = 6
-        self.ACTION_LEFT_BACK        = 7
-        self.ACTION_RIGHT_FRONT      = 8
-        self.ACTION_RIGHT_BACK       = 9
-        self.ACTION_UP_LEFT          = 10
-        self.ACTION_UP_LEFT_FRONT    = 11
-        self.ACTION_UP_FRONT         = 12
-        self.ACTION_UP_RIGHT_FRONT   = 13
-        self.ACTION_UP_RIGHT         = 14
-        self.ACTION_UP_RIGHT_BACK    = 15
-        self.ACTION_UP_BACK          = 16
-        self.ACTION_UP_LEFT_BACK     = 17
-        self.ACTION_DOWN_LEFT        = 18
-        self.ACTION_DOWN_LEFT_FRONT  = 19
-        self.ACTION_DOWN_FRONT       = 20
-        self.ACTION_DOWN_RIGHT_FRONT = 21
-        self.ACTION_DOWN_RIGHT       = 22
-        self.ACTION_DOWN_RIGHT_BACK  = 23
-        self.ACTION_DOWN_BACK        = 24
-        self.ACTION_DOWN_LEFT_BACK   = 25
-        self.ACTION_PICK             = 26
-        self.ACTION_DROP             = 27
-        self.ACTION_STAY             = 28
+        self.ACTION_NEXT             = self.ACTION_UP + 1
+        if env_pickplace.enable_2D_diag:
+            self.ACTION_LEFT_FRONT       = self.ACTION_NEXT
+            self.ACTION_LEFT_BACK        = self.ACTION_NEXT + 1
+            self.ACTION_RIGHT_FRONT      = self.ACTION_NEXT + 2
+            self.ACTION_RIGHT_BACK       = self.ACTION_NEXT + 3
+            self.ACTION_NEXT             = self.ACTION_NEXT + 4
+        if env_pickplace.enable_3D_diag:
+            self.ACTION_UP_LEFT          = self.ACTION_NEXT
+            self.ACTION_UP_LEFT_FRONT    = self.ACTION_NEXT + 1
+            self.ACTION_UP_FRONT         = self.ACTION_NEXT + 2
+            self.ACTION_UP_RIGHT_FRONT   = self.ACTION_NEXT + 3
+            self.ACTION_UP_RIGHT         = self.ACTION_NEXT + 4
+            self.ACTION_UP_RIGHT_BACK    = self.ACTION_NEXT + 5
+            self.ACTION_UP_BACK          = self.ACTION_NEXT + 6
+            self.ACTION_UP_LEFT_BACK     = self.ACTION_NEXT + 7
+            self.ACTION_DOWN_LEFT        = self.ACTION_NEXT + 8
+            self.ACTION_DOWN_LEFT_FRONT  = self.ACTION_NEXT + 9
+            self.ACTION_DOWN_FRONT       = self.ACTION_NEXT + 10
+            self.ACTION_DOWN_RIGHT_FRONT = self.ACTION_NEXT + 11
+            self.ACTION_DOWN_RIGHT       = self.ACTION_NEXT + 12
+            self.ACTION_DOWN_RIGHT_BACK  = self.ACTION_NEXT + 13
+            self.ACTION_DOWN_BACK        = self.ACTION_NEXT + 14
+            self.ACTION_DOWN_LEFT_BACK   = self.ACTION_NEXT + 15
+            self.ACTION_NEXT             = self.ACTION_NEXT + 16
+        self.ACTION_PICK             = self.ACTION_NEXT
+        self.ACTION_DROP             = self.ACTION_NEXT + 1
+        self.ACTION_STAY             = self.ACTION_NEXT + 2
         self.LAST_ACTION             = self.ACTION_STAY 
 
-        self.single_nA =self.LAST_ACTION + 1
+        self.single_nA = self.LAST_ACTION + 1
+        print('ACTIONSSS', self.single_nA)
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
 
         # Pieces locations are also mapped to the same robot 2D grid (even if
@@ -683,33 +693,41 @@ class env_pickplace:
         move_both_arms       = True 
 
         # helper for adjacent moves
-        offset_a = np.array([[ 1, 0, 0], # Left
-                             [-1, 0, 0], # Right
-                             [ 0, 1, 0], # Back
-                             [ 0,-1, 0], # Front
-                             [ 0, 0,-1], # Down
-                             [ 0, 0, 1], # Up
-                             [ 1,-1, 0], # Left-Front
-                             [-1,-1, 0], # Right-Front
-                             [-1, 1, 0], # Right-Back
-                             [ 1, 1, 0], # Left-Back
-                             [ 1, 0, 1], # Up-Left
-                             [ 1,-1, 1], # Up-Left-Front
-                             [ 0,-1, 1], # Up-Front
-                             [-1,-1, 1], # Up-Right-Front
-                             [-1, 0, 1], # Up-Right
-                             [-1, 1, 1], # Up-Right-Back
-                             [ 0, 1, 1], # Up-Back
-                             [ 1, 1, 1], # Up-Left-Back
-                             [ 1, 0,-1], # Down-Left
-                             [ 1,-1,-1], # Down-Left-Front
-                             [ 0,-1,-1], # Down-Front
-                             [-1,-1,-1], # Down-Right-Front
-                             [-1, 0,-1], # Down-Right
-                             [-1, 1,-1], # Down-Right-Back
-                             [ 0, 1,-1], # Down-Back
-                             [ 1, 1,-1], # Down-Left-Back
-                            ]) # left, rigth, back, fron, down, up
+        offset_action_basic = np.array([
+                             [ 1, 0, 0],  # Left
+                             [-1, 0, 0],  # Right
+                             [ 0, 1, 0],  # Back
+                             [ 0,-1, 0],  # Front
+                             [ 0, 0,-1],  # Down
+                             [ 0, 0, 1]]) # Up
+                            
+        offset_action_2D_diag = np.array([
+                             [ 1,-1, 0],  # Left-Front
+                             [-1,-1, 0],  # Right-Front
+                             [-1, 1, 0],  # Right-Back
+                             [ 1, 1, 0]]) # Left-Back
+
+        offset_action_3D_diag = np.array([
+                             [ 1, 0, 1],  # Up-Left
+                             [ 1,-1, 1],  # Up-Left-Front
+                             [ 0,-1, 1],  # Up-Front
+                             [-1,-1, 1],  # Up-Right-Front
+                             [-1, 0, 1],  # Up-Right
+                             [-1, 1, 1],  # Up-Right-Back
+                             [ 0, 1, 1],  # Up-Back
+                             [ 1, 1, 1],  # Up-Left-Back
+                             [ 1, 0,-1],  # Down-Left
+                             [ 1,-1,-1],  # Down-Left-Front
+                             [ 0,-1,-1],  # Down-Front
+                             [-1,-1,-1],  # Down-Right-Front
+                             [-1, 0,-1],  # Down-Right
+                             [-1, 1,-1],  # Down-Right-Back
+                             [ 0, 1,-1],  # Down-Back
+                             [ 1, 1,-1]]) # Down-Left-Back
+
+        offset_a = offset_action_basic
+        if env_pickplace.enable_2D_diag: offset_a = np.concatenate((offset_a, offset_action_2D_diag))
+        if env_pickplace.enable_3D_diag: offset_a = np.concatenate((offset_a, offset_action_3D_diag))
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)

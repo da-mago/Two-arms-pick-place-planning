@@ -4,6 +4,7 @@ import time    # sleep
 #import imageio # mimsave
 from mdp_generator import mdp_generator
 from mdp_solver import mdp_solver
+from env_pickplace import env_pickplace
 
 def mdp_step(state_rd, action):
     '''debug function'''
@@ -96,14 +97,17 @@ def generatePythonPlan(policy, initial_pos, pieces):
         next_state, reward, done, info = robot_mdp._step(action)
 
         # Register plan
-        a_name = ['Left            ', 'Right           ', 'Back            ', 'Front           ',
-                  'Down            ', 'Up              ',
-                  'Left_Front      ', 'Right_Front     ', 'Right_Back      ', 'Left_Back       ',
-                  'Up_Left         ', 'Up_Left_Front   ', 'Up_Front        ', 'Up_Right_Front  ',
-                  'Up_Right        ', 'Up_Right_Back   ', 'Up_Back         ', 'Up_Left_Back    ',
-                  'Down_Left       ', 'Down_Left_Front ', 'Down_Front      ', 'Down_Right_Front',
-                  'Down_Right      ', 'Down_Right_Back ', 'Down_Back       ', 'Down_Left_Back  ',
-                  'Pick            ', 'Drop            ', 'Stay            ']
+        a_name =      [ 'Left            ', 'Right           ', 'Back            ', 'Front           ', 'Down            ', 'Up              ']
+        if env_pickplace.enable_2D_diag:
+            a_name += [ 'Left_Front      ', 'Right_Front     ', 'Right_Back      ', 'Left_Back       ']
+
+        if env_pickplace.enable_3D_diag:
+            a_name += [ 'Up_Left         ', 'Up_Left_Front   ', 'Up_Front        ', 'Up_Right_Front  ',
+                        'Up_Right        ', 'Up_Right_Back   ', 'Up_Back         ', 'Up_Left_Back    ',
+                        'Down_Left       ', 'Down_Left_Front ', 'Down_Front      ', 'Down_Right_Front',
+                        'Down_Right      ', 'Down_Right_Back ', 'Down_Back       ', 'Down_Left_Back  ']
+
+        a_name +=     [ 'Pick            ', 'Drop            ', 'Stay            ']
 
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
@@ -507,14 +511,14 @@ if __name__ == "__main__":
                   }
                   ]
 
-        #pieces = [ 
-        #          {'start' : [-250, 300, 0],  # Piece 1
-        #           'end'   : [ 250, 500, 0],
-        #          },
-        #          {'end' : [-250, 500, 0],  # Piece 2
-        #           'start'   : [ 350, 200, 0],
-        #          },                     
-        #          ]
+        #`pieces = [ 
+        #`          {'start' : [-250, 300, 0],  # Piece 1
+        #`           'end'   : [ 250, 500, 0],
+        #`          },
+        #`          {'end' : [-250, 500, 0],  # Piece 2
+        #`           'start'   : [ 350, 200, 0],
+        #`          },                     
+        #`          ]
 
         #    # Debug: Fixed arms position
         #    #    500 50      600 -250    left, right
@@ -557,7 +561,8 @@ if __name__ == "__main__":
             print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
 
             # Solve MDP
-            solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]])
+            single_nA = 29
+            solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]], robot_mdp.single_nA)
             policy = solver.solve()
             print("\n\nAlgorithm execution {}\n\n".format(time.time() - algorithm_time))
 
