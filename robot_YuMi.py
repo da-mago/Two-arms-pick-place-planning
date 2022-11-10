@@ -22,7 +22,7 @@ class Robot_YuMi():
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v5.csv')    
         #self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
-        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D.csv', 'Alcance_grid3D_v1.csv')    
+        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v2.csv', 'Alcance_grid3D_v1.csv')    
 
     def _loadCSV(self, distanceFilename, configFilename):
         ''' Read and process robot data from csv file '''
@@ -104,12 +104,13 @@ class Robot_YuMi():
                                 # For non collision configurations, take the distance between EEs.
                                 #robotStudio_distance = int(row[6]) * int(float(row[7]))
                                 #if robotStudio_distance < 29:
-                                robotStudio_distance = int(row[6]) 
-                                if robotStudio_distance == 0:
-                                    dist = 0
-                                else:
-                                    dist = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 + (100*(zl-zr))**2 )) # units: mm
+                                ##robotStudio_distance = int(row[6]) 
+                                ##if robotStudio_distance == 0:
+                                #    dist = 0
+                                #else:
+                                #    dist = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 + (100*(zl-zr))**2 )) # units: mm
 
+                                dist = int(float(row[7]))
                                 distance[xl,yl,zl,xr,yr,zr] = dist 
 
         return M, N, Z, distance, config, reachable, location
@@ -123,7 +124,7 @@ class Robot_YuMi():
 
         (xl,yl,zl),(xr,yr,zr) = armsGridPos
 
-        return (self.distance[xl,yl,zl,xr,yr,zr] <= self.min_dist)
+        return (self.distance[xl,yl,zl,xr,yr,zr] < self.min_dist)
 
     #TODO: esto lo he copiado de env_pickplace..mmm dejalo como deberia
     def _armsPos2idx(self, armsPos):
