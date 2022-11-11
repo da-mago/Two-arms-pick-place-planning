@@ -116,7 +116,6 @@ class Robot_YuMi():
 
                                 dist = int(float(row[6]))
                                 distance[xl,yl,zl,xr,yr,zr] = dist 
-                                print(xl,yl,zl,xr,yr,zr, dist)
 
         return M, N, Z, distance, config, reachable, location
 
