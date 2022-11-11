@@ -198,6 +198,12 @@ class env_pickplace:
         self.single_nA = self.LAST_ACTION + 1
         print('ACTIONSSS', self.single_nA)
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
+        
+        # Reorder actions for convinience
+        self.actionReordered = self._ActionReorder()
+        self.actionReorderedInverse = [x for x in self.actionReordered]
+        for i in range(len(self.actionReordered)):
+            self.actionReorderedInverse[ self.actionReordered[i] ] = i
 
         # Pieces locations are also mapped to the same robot 2D grid (even if
         # the real piece position does not match the 2D grid point)
@@ -335,8 +341,22 @@ class env_pickplace:
 
         return [arms_pos, arms_status, pieces_status, pick_pos]
 
+    def _ActionReorder(self):
+        # There are an amount of A*A combined actions. 
+        # Let's prioritize combined actions where only one arm is moving
+        NUM_ACTION = self.single_nA
+        ACTION_STAY = NUM_ACTION - 1
+        y = ACTION_STAY
+        left_arm  = [NUM_ACTION*x + y for x in range(ACTION_STAY)]
+        x = ACTION_STAY
+        right_arm = [NUM_ACTION*x + y for y in range(ACTION_STAY)]
+        two_arm   = [NUM_ACTION*x + y for x in range(ACTION_STAY) for y in range(ACTION_STAY)]
+
+        return left_arm + right_arm + two_arm
+
     def _ext2intAction(self, action):
         ''' convert external action (scalar) to internal action representation '''
+        action = self.actionReordered[action]
         return [action//self.single_nA, action%self.single_nA]
     
     def _int2extAction(self, joint_action):
@@ -346,7 +366,7 @@ class env_pickplace:
             action *= self.single_nA
             action += a
 
-        return action
+        return self.actionReorderedInverse[action]
 
     def _nearest2DTo(self, item, item_list):
         ''' Find the most similar entry in the item_list (ignore Z) '''

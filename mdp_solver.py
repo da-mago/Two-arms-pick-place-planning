@@ -65,26 +65,11 @@ class mdp_solver():
                 delta_old = delta
                 i=0
     
+        # Optimal Value Function
         VA = rewards + discount_factor*V[states]
 
-        NUM_ACTION = self.single_nA
-        ACTION_STAY = NUM_ACTION - 1
-        y = ACTION_STAY
-        left_arm  = [NUM_ACTION*x + y for x in range(ACTION_STAY)]
-        x = ACTION_STAY
-        right_arm = [NUM_ACTION*x + y for y in range(ACTION_STAY)]
-        two_arm   = [NUM_ACTION*x + y for x in range(ACTION_STAY) for y in range(ACTION_STAY)]
-        all_arm = np.array(left_arm + right_arm + two_arm)
-        VA2 = np.zeros_like(VA)
-        #print(left_arm, right_arm, two_arm, all_arm, VA2.shape)
-        VA2[:, 0:len(left_arm)] = VA[:, left_arm]
-        VA2[:, len(left_arm):len(left_arm + right_arm)] = VA[:, right_arm]
-        VA2[:, len(left_arm + right_arm):]  = VA[:, two_arm]
-
-        policy = all_arm[np.argmax(VA2, axis=1)]
-#        policy = np.argmax(VA, axis=1)
-
-        #print('SOLVED')
+        # Compute policy (best action for each state)
+        policy = np.argmax(VA, axis=1)
     
         return policy
 
