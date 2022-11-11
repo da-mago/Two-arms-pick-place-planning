@@ -838,6 +838,9 @@ class env_pickplace:
             valid_state = not self.robot.checkCollision(next_arms_grid_pos)
 
         if valid_state:
+            valid_state = not self.robot.checkCrossCollision(self.armsGridPos, next_arms_grid_pos)
+
+        if valid_state:
             valid_state = self._isPiecesStatusValid(next_arms_status, next_pieces_status, next_pick_pos)
 
         if valid_state:

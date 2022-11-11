@@ -22,7 +22,7 @@ class Robot_YuMi():
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v5.csv')    
         #self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
-        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v4.csv', 'Alcance_grid3D_v3.csv')    
+        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v5.csv', 'Alcance_grid3D_v4.csv')    
 
     def _loadCSV(self, distanceFilename, configFilename):
         ''' Read and process robot data from csv file '''
@@ -115,6 +115,21 @@ class Robot_YuMi():
 
         return M, N, Z, distance, config, reachable, location
 
+    def checkCrossCollision(self, preArmsGridPos, postArmsGridPos):
+        ''' Check potential collision during the move '''
+
+        # Ignore the check if any arm pos is unknown
+        if [-1,-1,-1] in preArmsGridPos or \
+           [-1,-1,-1] in postArmsGridPos:
+            assert False, 'OK... not sure if this happens'
+            return False
+
+        xl,yl,zl = (np.array(preArmsGridPos[0]) + np.array(postArmsGridPos[0]))/2
+        xr,yr,zr = (np.array(preArmsGridPos[1]) + np.array(postArmsGridPos[1]))/2
+        dist = int(np.sqrt( (100*(xl-xr))**2 + (100*(yl-yr))**2 + (100*(zl-zr))**2 )) # units: 
+
+        return False
+        return (dist < 1) # Collision if distance is less than one cell
 
     def checkCollision(self, armsGridPos):
         # Ignore the check if any arm pos is unknown
