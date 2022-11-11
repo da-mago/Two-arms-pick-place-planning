@@ -89,8 +89,9 @@ class Robot_YuMi():
         distance  = np.zeros((M, N, Z, M, N, Z), dtype=np.uint16)
         idx = 0
         # Loop over excel file (order given by the excel format itself)
-        for zl in range(Z):
-            for zr in range(Z):
+        excelZ = 3 # Trick to enable grid 3D with only 2 layers (being 3 layers in excel)
+        for zl in range(excelZ):
+            for zr in range(excelZ):
                 for yl in range(N):
                     for xl in range(M-1, -1, -1):
                         for yr in range(N):
@@ -99,6 +100,9 @@ class Robot_YuMi():
                                 # Again... reorganize csv data
                                 row = csv_data[idx]
                                 idx += 1
+
+                                if zl >= Z or zr >= Z:
+                                    continue
 
                                 # Consider any value below 29mm given by RobotStudio as collision
                                 # For non collision configurations, take the distance between EEs.
@@ -112,6 +116,7 @@ class Robot_YuMi():
 
                                 dist = int(float(row[6]))
                                 distance[xl,yl,zl,xr,yr,zr] = dist 
+                                print(xl,yl,zl,xr,yr,zr, dist)
 
         return M, N, Z, distance, config, reachable, location
 
