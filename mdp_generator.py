@@ -13,8 +13,8 @@ import pickle
 
 class mdp_generator(env_pickplace):
 
-    def __init__(self, robot, pieces):
-        super().__init__(robot, pieces)
+    def __init__(self, robot, pieces, globalCfg):
+        super().__init__(robot, pieces, globalCfg)
 
         filename = "MDP_RAW.bin" 
         # Load MDP template from file

@@ -10,6 +10,7 @@ import pickle
   # NEED TO INSTALL TINYIK (and add a change if I remember how)
   #from robot_2A2L import Robot_2A2L
 from robot_YuMi import Robot_YuMi
+from global_config import GlobalConfig as Cfg
 import code
 
 # Debug functionality
@@ -87,17 +88,15 @@ class env_pickplace:
                 env.step(env.action_space.sample()) # take a random action
             env.close()
     '''
-    enable_2D_diag = True
-    enable_3D_diag = True
 
-
-    def __init__(self, robot, pieces_cfg):
+    def __init__(self, robot, pieces_cfg, globalCfg):
 
         #
         # Environment definition (YuMi + pieces)
         #
-        self.robot     = robot
-        self.piecesCfg = pieces_cfg
+        self.robot         = robot
+        self.piecesCfg     = pieces_cfg
+        self.actions_mode  = globalCfg.actions_mode
 
         # 'robot' object describes a two-arm robot with n degrees of freedom.
         # 
@@ -166,13 +165,15 @@ class env_pickplace:
         self.ACTION_DOWN             = 4
         self.ACTION_UP               = 5
         self.ACTION_NEXT             = self.ACTION_UP + 1
-        if env_pickplace.enable_2D_diag:
+        if globalCfg.actions_mode != Cfg.ACTIONS_BASIC:
+            # Add diafonal 2D
             self.ACTION_LEFT_FRONT       = self.ACTION_NEXT
             self.ACTION_LEFT_BACK        = self.ACTION_NEXT + 1
             self.ACTION_RIGHT_FRONT      = self.ACTION_NEXT + 2
             self.ACTION_RIGHT_BACK       = self.ACTION_NEXT + 3
             self.ACTION_NEXT             = self.ACTION_NEXT + 4
-        if env_pickplace.enable_3D_diag:
+        if globalCfg.actions_mode == Cfg.ACTIONS_DIAGONAL_2D_3D:
+            # Add diafonal 3D
             self.ACTION_UP_LEFT          = self.ACTION_NEXT
             self.ACTION_UP_LEFT_FRONT    = self.ACTION_NEXT + 1
             self.ACTION_UP_FRONT         = self.ACTION_NEXT + 2
@@ -220,22 +221,22 @@ class env_pickplace:
         #       grid.
         #
         self.piecesLocation = { 'start':[], 'end':[] }
-        for cfg in self.piecesCfg:
+        for p_cfg in self.piecesCfg:
             # find corresponding grid location for each piece
-            xy_i = self._nearest2DTo(cfg['start'], self.robot.location)
-            xy_j = self._nearest2DTo(cfg['end'],   self.robot.location)
+            xy_i = self._nearest2DTo(p_cfg['start'], self.robot.location)
+            xy_j = self._nearest2DTo(p_cfg['end'],   self.robot.location)
 
             self.piecesLocation['start'].append(xy_i)
             self.piecesLocation['end'  ].append(xy_j)
 
             ## update robot grid
-            #print(xy_i, self._xy2idx(xy_i), cfg['start'])
-            #print(xy_j, self._xy2idx(xy_j), cfg['end'])
-            self.robot.updateLocation(xy_i, cfg['start'])
-            self.robot.updateLocation(xy_j, cfg['end'])
+            #print(xy_i, self._xy2idx(xy_i), p_cfg['start'])
+            #print(xy_j, self._xy2idx(xy_j), p_cfg['end'])
+            self.robot.updateLocation(xy_i, p_cfg['start'])
+            self.robot.updateLocation(xy_j, p_cfg['end'])
 
         # Pieces current pos
-        self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
+        self.piecesCurrPos = [ p_cfg for p_cfg in self.piecesLocation['start'] ]
 
 #        # Get robot (angles) configurations
 #        self.gridAng = self.robot.getConfig()
@@ -547,7 +548,7 @@ class env_pickplace:
         else:
             self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos = self._ext2intState(state)
 
-        self.piecesCurrPos = [ cfg for cfg in self.piecesLocation['start'] ]
+        self.piecesCurrPos = [ p_cfg for p_cfg in self.piecesLocation['start'] ]
 
     # Move robot part to Robot class
     def render(self):
@@ -746,8 +747,10 @@ class env_pickplace:
                              [ 1, 1,-1]]) # Down-Left-Back
 
         offset_a = offset_action_basic
-        if env_pickplace.enable_2D_diag: offset_a = np.concatenate((offset_a, offset_action_2D_diag))
-        if env_pickplace.enable_3D_diag: offset_a = np.concatenate((offset_a, offset_action_3D_diag))
+        if self.actions_mode != Cfg.ACTIONS_BASIC:
+            offset_a = np.concatenate((offset_a, offset_action_2D_diag))
+        if self.actions_mode == Cfg.ACTIONS_DIAGONAL_2D_3D:
+            offset_a = np.concatenate((offset_a, offset_action_3D_diag))
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)

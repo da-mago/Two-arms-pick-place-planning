@@ -12,11 +12,12 @@ class Robot_YuMi():
         be read by this class.
     '''
 
-    def __init__(self, min_dist=50, z=180):
+    def __init__(self, globalCfg):
         ''' Define the robot model and create an instance of Robot class '''
 
-        self.min_dist = min_dist # Distance considered collision (cm)
-        self.z = z               # Default z value for robot EEs
+        self.min_distance = globalCfg.collision_min_distance # Distance considered collision (cm)
+        self.z_layers     = globalCfg.grid_num_layers
+        self.z            = 180   # Default z value for robot EEs
 
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
@@ -39,6 +40,7 @@ class Robot_YuMi():
         M  = int(csv_data[0][1])
         N  = int(csv_data[0][2])
         Z  = int(csv_data[0][3])
+        Z = self.z_layers
         NUM_ARMS = 2
         NUM_ANGLES = 7
         csv_data = csv_data[3:] # Skip non-arm-data rows
@@ -143,7 +145,7 @@ class Robot_YuMi():
 
         (xl,yl,zl),(xr,yr,zr) = armsGridPos
 
-        return (self.distance[xl,yl,zl,xr,yr,zr] < self.min_dist)
+        return (self.distance[xl,yl,zl,xr,yr,zr] < self.min_distance)
 
     #TODO: esto lo he copiado de env_pickplace..mmm dejalo como deberia
     def _armsPos2idx(self, armsPos):
