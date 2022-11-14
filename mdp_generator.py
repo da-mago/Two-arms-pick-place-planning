@@ -13,10 +13,9 @@ import pickle
 
 class mdp_generator(env_pickplace):
 
-    def __init__(self, robot, pieces, globalCfg):
+    def __init__(self, robot, pieces, globalCfg, filename):
         super().__init__(robot, pieces, globalCfg)
 
-        filename = "MDP_RAW.bin" 
         # Load MDP template from file
         if not self._load(filename):
             # Create MDP template and save it to file
@@ -53,18 +52,17 @@ class mdp_generator(env_pickplace):
             online computation.
         '''
 
-        print("Filtering valid states ...")
-
         # Filter out invalid states
         valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
         valid_nS = len(valid_states)
-        print("{} out of {}".format(valid_nS, self.nS))
+        print("Num states : {} (out of {})".format(valid_nS, self.nS))
+        print("Num actions: {}".format(self.nA))
 
         states_idx = {}
         for i, item in enumerate(valid_states):
             states_idx[item] = i
 
-        print("Computing MDP ...")
+        print("Computing MDP ", end='', flush=True)
         # Note: MDP is very large. Use numpy
         mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
         mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int16)
@@ -76,8 +74,10 @@ class mdp_generator(env_pickplace):
                next_state, reward, done, info = self._step(a, mode=1)
                mdp_s[i][a] = states_idx[next_state]
                mdp_r[i][a] = reward
-            if (i % (valid_nS//10)) == 0:
-                print(10*i//(valid_nS//10),'%')
+            if (i % (valid_nS//100)) == 0:
+                print("." , end='', flush=True)
+                #print(10*i//(valid_nS//10),'%')
+        print("")
 
         # State space layers partition
         # TODO: prioritized_piecesMap must be generic fr n-pieces
@@ -103,8 +103,8 @@ class mdp_generator(env_pickplace):
     
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
-
         print(p_ini, p_end)
+
         states_idx = self.MDP[3]
 
         counter = 0
@@ -366,7 +366,6 @@ class mdp_generator(env_pickplace):
                                     counter += 1  
                                     self.MDP[0][idx][action] = states_idx[state]
                                     self.MDP[1][idx][action] = reward
-        print("COUNTER {}\n".format(counter))
 
 if __name__ == "__main__":
 

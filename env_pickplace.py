@@ -197,7 +197,6 @@ class env_pickplace:
         self.LAST_ACTION             = self.ACTION_STAY 
 
         self.single_nA = self.LAST_ACTION + 1
-        print('ACTIONSSS', self.single_nA)
         self.nA = self.single_nA**2 - 1 # all join actions (up/up, up/left, down/up, ...) except stay/stay
         
         # Reorder actions for convinience
@@ -638,8 +637,8 @@ class env_pickplace:
         if valid_state:
             valid_state = self._isPiecesStatusValid(arms_status, pieces_status, pick_pos)
 
-        if (state % (self.nS//100)) == 0:
-            print(state / (self.nS//100))
+        #if (state % (self.nS//100)) == 0:
+        #    print(state / (self.nS//100))
 
         return valid_state
 

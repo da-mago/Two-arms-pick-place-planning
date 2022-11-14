@@ -76,7 +76,7 @@ def showSolution(policy, initial_pos, GIF_filename=None):
     #print(f"Solution in {i}")
                 
 
-def generatePythonPlan(policy, initial_pos, pieces):
+def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg):
 
     src  = '# Pieces location\n'
     src += 'pieces_location = {}\n\n'.format(pieces)
@@ -134,7 +134,7 @@ def generatePythonPlan(policy, initial_pos, pieces):
 
 
 
-def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
+def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
 
     # Sort of MACROs
     GRIPPER_XY    = 0
@@ -149,7 +149,6 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
     Z_GRIPPER     = [180, 110]
 
     src  = ''
-    robot = robot_mdp.robot
 
     num_steps = 0
     pieces_status = [1 for _ in range(robot_mdp.K)]
@@ -298,7 +297,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot_mdp):
 if __name__ == "__main__":
 
     # User config
-    globalCfg = Cfg(2, Cfg.ACTIONS_BASIC, 50)
+    globalCfg = Cfg(1, Cfg.ACTIONS_BASIC, 50)
 
     # Robot
     robot = Robot_YuMi(globalCfg)
@@ -308,14 +307,14 @@ if __name__ == "__main__":
     
     # Pieces
     pieces = [
-              {'start' : [ -350, 200, 0],  # Piece 1
+              {'start' : [-350, 200, 0],  # Piece 1
                'end'   : [ 450, 300, 0],
               },
               {'start' : [ 50,  600, 0],  # Piece 2
                'end'   : [-50,  200, 0],
               },
               {'start' : [ 250, 400, 0],  # Piece 3
-               'end'   : [ -450, 200, 0],
+               'end'   : [-450, 200, 0],
               },
               {'start' : [ -50, 600, 0],  # Piece 4
                'end'   : [  50, 200, 0],
@@ -325,8 +324,8 @@ if __name__ == "__main__":
               {'start' : [-250, 300, 0],  # Piece 1
                'end'   : [ 250, 500, 0],
               },
-              {'end' : [-250, 500, 0],  # Piece 2
-               'start'   : [ 350, 200, 0],
+              {'start' : [ 350, 200, 0],
+               'end'   : [-250, 500, 0],  # Piece 2
               },                     
           ]
 
@@ -339,7 +338,8 @@ if __name__ == "__main__":
 
     # Create (or load) MDP template (no pieces info)
     # Then update template with pieces info
-    robot_mdp = mdp_generator(robot, pieces, globalCfg)
+    filename = "MDP_RAW.bin" 
+    robot_mdp = mdp_generator(robot, pieces, globalCfg, filename)
     algorithm_time = time.time()
     robot_mdp.update()
     print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
@@ -353,6 +353,6 @@ if __name__ == "__main__":
     num_steps = 0
     print(robot_mdp.piecesLocation)
     print("DATA: ", armsGridPos, ";", pieces, ";", num_steps)
-    generateTxtPlan(policy, armsGridPos, pieces, robot_mdp)
-    generatePythonPlan(policy, armsGridPos, pieces)
+    generateTxtPlan(policy, armsGridPos, pieces, robot, robot_mdp)
+    generatePythonPlan(policy, armsGridPos, pieces, robot, robot_mdp, globalCfg)
 
