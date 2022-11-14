@@ -189,7 +189,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
         z_plane = []
         gripper_action = []
         joint_a = robot_mdp._ext2intAction(action)
-        print(joint_a, robot_mdp.armsGridPos, robot_mdp.armsStatus, robot_mdp.piecesStatus, robot_mdp.pickPos)
+        #print(joint_a, robot_mdp.armsGridPos, robot_mdp.armsStatus, robot_mdp.piecesStatus, robot_mdp.pickPos)
         #gripper = [0, 0]
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
@@ -265,7 +265,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
                     src +='\n'
        # print('b')
 
-    print('NUM_STEPS ', num_steps)
+    #print('NUM_STEPS ', num_steps)
     
     #print('\n')
     #print('###############################################')
@@ -289,7 +289,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
     #print('pieces_pos = {}'.format(pieces))
 
     #print(" # Plan based on EE locations (instead of joints)")
-    print(src)
+    #print(src)
     
     return arms_pos, num_steps, src
 

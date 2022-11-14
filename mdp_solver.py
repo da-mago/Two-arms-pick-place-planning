@@ -61,7 +61,7 @@ class mdp_solver():
             if delta == delta_old:
                 i+=1
                 if i>80:
-                    print('BREAK SOLVE', delta)
+                    #print('BREAK SOLVE', delta)
                     break
             else:
                 delta_old = delta

@@ -103,7 +103,7 @@ class mdp_generator(env_pickplace):
     
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
-        print(p_ini, p_end)
+        #print(p_ini, p_end)
 
         states_idx = self.MDP[3]
 
