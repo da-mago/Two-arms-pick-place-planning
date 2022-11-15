@@ -138,10 +138,9 @@ if __name__ == "__main__":
         for num_layers in [1,2,3]:
             for action_mode in [0,1,2]:
                 #for num_pieces in [2, 4]:
-                for num_pieces in [2]:
+                for num_pieces in [4]:
                     for distance in [50]:
         
-                        t0 = time.time()
 
                         tc_name = "d{}_pieces{}_amode{}_layers{}".format(distance, num_pieces, action_mode, num_layers)
                         print(CORANGE + "\nTEST CASE {}: {}".format(tc_num, tc_name) + CEND)
@@ -156,7 +155,9 @@ if __name__ == "__main__":
                         filename = "MDP_{}.bin".format(tc_name)
                         path = os.path.join(folder, filename)
                         pieces = pieces_cfg[0:num_pieces]
+                        t0 = time.time()
                         robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
+                        t1 = time.time()
                         robot_mdp.update()
         
                         print(pieces)
@@ -167,6 +168,7 @@ if __name__ == "__main__":
         
                         # Validate solution
                         status = validate(policy, armsGridPos, pieces, robot_mdp)
+                        t2 = time.time()
 
                         # Generate RobotStudio Plan
                         if status:
@@ -178,8 +180,10 @@ if __name__ == "__main__":
                             with open(path, "w") as f:
                                 f.write(plan)
             
-                        time_s = time.time() - t0
-                        print("Time: {}h {}m {}s".format(int(time_s/3600), int((time_s%3600)/60), int(time_s%60)))
+                        time_online  = t2- t1
+                        time_offline = t1- t0
+                        print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
+                        print("Time Online : {}h {}m {}s".format(int(time_online/3600),  int((time_online%3600)/60),  int(time_online%60)))
     
                         # Fill report
                         report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
