@@ -156,7 +156,6 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
     next_state = init_state
     robot_mdp.reset(next_state)
 
-    print("Generating plan ...")
     arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
     #for ang in reversed(arms_config):
     #    print(','.join([str(x) for x in ang]))

@@ -88,6 +88,8 @@ class env_pickplace:
                 env.step(env.action_space.sample()) # take a random action
             env.close()
     '''
+    MODE_OFFLINE = 0 # Pieces configuration is unkown
+    MODE_ONLINE  = 1 # Pieces configuration is kown
 
     def __init__(self, robot, pieces_cfg, globalCfg):
 
@@ -310,7 +312,7 @@ class env_pickplace:
 
         return state
 
-    def _ext2intState(self, state):
+    def _ext2intState(self, state, mode = MODE_ONLINE):
         ''' convert external state (scalar) to internal state representation '''
         N,M,Z,K,P,T = self.N, self.M, self.Z, self.K, self.P, self.T
 
@@ -333,11 +335,14 @@ class env_pickplace:
             state = (state - idx) // (N*M*Z + K*P) 
             if idx >= N*M*Z:
                 p_pos = idx + 1 - N*M*Z
-                arms_pos.insert(0, self._derivePosFromState(arm_st, pieces_status, p_pos) )
                 pick_pos.insert(0, p_pos)
+                if mode == env_pickplace.MODE_OFFLINE:
+                    arms_pos.insert(0, self.robot.unknown_pos)
+                else:
+                    arms_pos.insert(0, self._derivePosFromState(arm_st, pieces_status, p_pos) )
             else:
-                arms_pos.insert(0, self._idx2xy(idx))
                 pick_pos.insert(0, 0)
+                arms_pos.insert(0, self._idx2xy(idx))
 
         return [arms_pos, arms_status, pieces_status, pick_pos]
 
@@ -617,12 +622,13 @@ class env_pickplace:
 
     #    return state, reward, done, info
 
-    def _isStateValid(self, state):
+    def _isStateValid(self, state, mode=0):
         '''  Convert scalar state number to internal MDP state vars representation
              and check if that vars combination is valid 
+             mode: 0 - pieces known (online computation), 1 - pieces unkown (offline computation)
         '''
 
-        arms_pos, arms_status, pieces_status, pick_pos = self._ext2intState(state)
+        arms_pos, arms_status, pieces_status, pick_pos = self._ext2intState(state, mode=mode)
 
         valid_state = True
 

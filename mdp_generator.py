@@ -53,10 +53,11 @@ class mdp_generator(env_pickplace):
         '''
 
         # Filter out invalid states
-        valid_states = [s for s in range(self.nS) if self._isStateValid(s)]
+        valid_states = [s for s in range(self.nS) if self._isStateValid(s, mode=env_pickplace.MODE_OFFLINE)]
         valid_nS = len(valid_states)
         print("Num states : {} (out of {})".format(valid_nS, self.nS))
         print("Num actions: {}".format(self.nA))
+        #return valid_states
 
         states_idx = {}
         for i, item in enumerate(valid_states):

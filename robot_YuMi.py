@@ -18,6 +18,7 @@ class Robot_YuMi():
         self.min_distance = globalCfg.collision_min_distance # Distance considered collision (cm)
         self.z_layers     = globalCfg.grid_num_layers
         self.z            = 180   # Default z value for robot EEs
+        self.unknown_pos  = [-1,-1,-1]
 
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
         #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
@@ -125,8 +126,8 @@ class Robot_YuMi():
         ''' Check potential collision during the move '''
 
         # Ignore the check if any arm pos is unknown
-        if [-1,-1,-1] in preArmsGridPos or \
-           [-1,-1,-1] in postArmsGridPos:
+        if self.unknown_pos in preArmsGridPos or \
+           self.unknown_pos in postArmsGridPos:
             assert False, 'OK... not sure if this happens'
             return False
 
@@ -139,8 +140,8 @@ class Robot_YuMi():
 
     def checkCollision(self, armsGridPos):
         # Ignore the check if any arm pos is unknown
-        if [-1,-1,-1] in armsGridPos:
-            assert False, 'OK... not sure if this happens'
+        if self.unknown_pos in armsGridPos:
+            #assert False, 'OK... not sure if this happens'
             return False
 
         (xl,yl,zl),(xr,yr,zr) = armsGridPos
@@ -163,28 +164,14 @@ class Robot_YuMi():
 
     def checkValidLocation(self, armsGridPos):
         for pos, reach in zip(armsGridPos, self.reachable):
-            if pos != [-1,-1,-1]: # Ignore the check if the arm pos is unknown
+            if pos != self.unknown_pos:
                 x,y,z = pos
                 if not reach[x,y,z]:
                     return False
             else:
-                assert False, 'OK... not sure if this happens in checkValidLocation'
-
-
-        ## Trampa para que el brazo izquierdo no pase de cierta posicion en el eje X. Es algo temporal para generar una solucion trucada para llevarla a RobotStudio
-        ## Si y<=400 and x>=250, o y>=500 and x>=150
-        #x,y = armsGridPos[0][0], armsGridPos[0][1]
-        #if y <= 2:
-        #    if x >= 7:
-        #        return False
-        #else:
-        #    if x >= 6:
-        #        return False
-
-        #print()
-        #print("check")
-        #print(armsGridPos)
-
+                # Ignore the check if the arm pos is unknown
+                pass
+                #assert False, 'OK... not sure if this happens in checkValidLocation'
 
         return True
 

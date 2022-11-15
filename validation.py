@@ -103,16 +103,16 @@ if __name__ == "__main__":
     
     # Pieces
     pieces_cfg = [
-        {'start': [-250, 300, 180],  # Piece 1 brazo derecho
+        {'start': [-250, 300, 180],
          'end'  : [ 450, 400, 180],
          },
-        {'start': [ -50, 600, 180],  # Piece 2 brazo derecho
-         'end'  : [ 350, 200, 180],
-         },
-        {'start': [ 250, 300, 180],  # Piece 3 brazo izquierdo
+        {'start': [ 250, 300, 180],
          'end'  : [-450, 400, 180],
          },
-        {'start': [  50, 600, 180],  # Piece 4 brazo izquierdo
+        {'start': [ -50, 600, 180],
+         'end'  : [ 350, 200, 180],
+         },
+        {'start': [  50, 600, 180],
          'end'  : [-350, 200, 180],
          }
     ]
@@ -125,9 +125,9 @@ if __name__ == "__main__":
 
         # Clean output folder
         folder = 'output'
-        if os.path.exists(folder):
-            shutil.rmtree(folder)
-        os.mkdir(folder)
+        #if os.path.exists(folder):
+        #    shutil.rmtree(folder)
+        #os.mkdir(folder)
 
         # Create validation report
         path = os.path.join(folder, "README.txt")
@@ -136,7 +136,8 @@ if __name__ == "__main__":
         tc_num = 1
         for num_layers in [1,2,3]:
             for action_mode in [0,1,2]:
-                for num_pieces in [2, 4]:
+                #for num_pieces in [2, 4]:
+                for num_pieces in [2]:
                     for distance in [50]:
         
                         tc_name = "d{}_pieces{}_amode{}_layers{}".format(distance, num_pieces, action_mode, num_layers)
@@ -151,27 +152,30 @@ if __name__ == "__main__":
                         # Generate MDP
                         filename = "MDP_{}.bin".format(tc_name)
                         path = os.path.join(folder, filename)
-                        pieces = pieces_cfg[0: num_pieces]
+                        pieces = pieces_cfg[0:num_pieces]
                         robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
                         robot_mdp.update()
         
+                        print(pieces)
                         # Solve MDP
                         f_reward, f_transition = robot_mdp.MDP[0:2]
                         solver = mdp_solver([f_reward, f_transition], robot_mdp.single_nA)
                         policy = solver.solve()
         
-                        # Generate RobotStudio Plan
-                        print("Generating RobotStudio path")
-                        _, _, plan = pick_place.generateTxtPlan(policy, armsGridPos, pieces, robot, robot_mdp)
-
-                        filename = "RobotStudio_{}.txt".format(tc_name)
-                        path = os.path.join(folder, filename)
-                        with open(path, "w") as f:
-                            f.write(plan)
-        
                         # Validate solution
-                        stetus = validate(policy, armsGridPos, pieces, robot_mdp)
+                        status = validate(policy, armsGridPos, pieces, robot_mdp)
 
+                        # Generate RobotStudio Plan
+                        if status:
+                            print("Generating RobotStudio plan")
+                            _, _, plan = pick_place.generateTxtPlan(policy, armsGridPos, pieces, robot, robot_mdp)
+    
+                            filename = "RobotStudio_{}.txt".format(tc_name)
+                            path = os.path.join(folder, filename)
+                            with open(path, "w") as f:
+                                f.write(plan)
+            
+    
                         # Fill report
                         report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
 
