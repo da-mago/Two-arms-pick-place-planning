@@ -7,6 +7,7 @@ from robot_YuMi import Robot_YuMi
 import os
 import pick_place
 import shutil
+import time
 
 # Print colors
 CRED    = '\033[91m'
@@ -140,6 +141,8 @@ if __name__ == "__main__":
                 for num_pieces in [2]:
                     for distance in [50]:
         
+                        t0 = time.time()
+
                         tc_name = "d{}_pieces{}_amode{}_layers{}".format(distance, num_pieces, action_mode, num_layers)
                         print(CORANGE + "\nTEST CASE {}: {}".format(tc_num, tc_name) + CEND)
         
@@ -175,6 +178,8 @@ if __name__ == "__main__":
                             with open(path, "w") as f:
                                 f.write(plan)
             
+                        time_s = time.time() - t0
+                        print("Time: {}h {}m {}s".format(int(time_s/3600), int((time_s%3600)/60), int(time_s%60)))
     
                         # Fill report
                         report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
