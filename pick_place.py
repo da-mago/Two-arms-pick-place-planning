@@ -136,60 +136,33 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
 
 def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
 
-    # Sort of MACROs
-    GRIPPER_XY    = 0
-    GRIPPER_DOWN  = 1
-    GRIPPER_CLOSE = 2
-    GRIPPER_OPEN  = 3
-    GRIPPER_UP    = 4
-    #Z_PLANE       = 180
-    #Z_UP          = 180
-    #Z_DOWN        = 110
-    #Z_GRIPPER     = Z_DOWN
-    Z_GRIPPER     = [180, 110]
-
     src  = ''
 
     num_steps = 0
     pieces_status = [1 for _ in range(robot_mdp.K)]
-    init_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
-    next_state = init_state
-    robot_mdp.reset(next_state)
+    state_idx_int = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
+    robot_mdp.reset(state_idx_int)
 
     arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
-    #for ang in reversed(arms_config):
-    #    print(','.join([str(x) for x in ang]))
 
     gripper = [0,0] # Gripper state: 0 (Open) | 1 (Close)
-    for ang, pos, grip in zip(reversed(arms_config), reversed(initial_pos), reversed(gripper)):
-        # Format:
-        #   ANGLES # GRIPPER (gripper open/close) or XYZ (MOVE Z)
+    for ang, grip in zip(reversed(arms_config), reversed(gripper)):
+        # Format: ANGLES + GRIPPER (opened/closed)
         src += ','.join([str(x) for x in ang]) 
-        x,y,z = pos
-        x,y,_ = robot.location[x,y,z]
-        z = Z_GRIPPER[0]
-        src += ',{} # {} {} {}\n'.format(grip, y,-x,z) # Axis conversion for RobotStudio
+        src += ',{}\n'.format(grip) # Axis conversion for RobotStudio
 
     done = False
     while done == False:
         num_steps += 1
-        action = policy[ robot_mdp.MDP[3][next_state] ]
-        #print(robot_mdp._ext2intAction(action))
-        previous_next_state = next_state
-        next_state, reward, done, info = robot_mdp._step(action)
-        #state_rd   = robot_mdp.MDP[3][next_state]
-        #next_state, reward, done, info = mdp_step(state_rd, action)
-        #print(reward)
+        state_idx_ext = robot_mdp.MDP[3][state_idx_int]
+        action = policy[state_idx_ext]
+        state_idx_int, reward, done, info = robot_mdp._step(action)
 
-        # Register plan
-        arms_pos, _, _, pick_pos = robot_mdp._ext2intState(next_state)
+        arms_pos, _, _, pick_pos = robot_mdp._ext2intState(state_idx_int)
         poss = []
         zs   = []
         z_plane = []
-        gripper_action = []
         joint_a = robot_mdp._ext2intAction(action)
-        #print(joint_a, robot_mdp.armsGridPos, robot_mdp.armsStatus, robot_mdp.piecesStatus, robot_mdp.pickPos)
-        #gripper = [0, 0]
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
@@ -204,91 +177,24 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
                 tmp_p_pos = 0
             poss.append(pos)
             # Go down, up, open, close gripper
-            #print('d', a_a, tmp_p_pos, robot_mdp.P)
             #                                                     opened/closed           Z                arm Zcomment (grip action)        
             if tmp_p_pos == 0:
-                if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);  gripper_action.append(GRIPPER_UP)
-                else:                                                              z_plane.append(0);  gripper_action.append(GRIPPER_XY)
-            elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);  gripper_action.append(GRIPPER_DOWN)
+                if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);
+                else:                                                              z_plane.append(0);
+            elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);
             elif (tmp_p_pos == robot_mdp.P/2 + 1) and \
-                  a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);  gripper_action.append(GRIPPER_CLOSE)
-            elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);  gripper_action.append(GRIPPER_OPEN)
-            else:                                                                  z_plane.append(1);  gripper_action.append(GRIPPER_UP)
-            #print('c', gripper_action)
-            # Z value
-#            if tmp_p_pos == 0:
-#                if a_a == robot_mdp.ACTION_PICK  or \
-#                   a_a == robot_mdp.ACTION_DROP:        zs.append(Z_UP);      z_plane.append(1)
-#                else:                                   zs.append(Z_PLANE);   z_plane.append(0)
-#            if tmp_p_pos == 0 and \
-#               a_a != robot_mdp.ACTION_PICK and \
-#               a_a != robot_mdp.ACTION_DROP:            zs.append(Z_DOWN);    z_plane.append(0)
-#            elif tmp_p_pos < (robot_mdp.P/2 + 1):       zs.append(Z_DOWN);    z_plane.append(1)
-#            elif tmp_p_pos == robot_mdp.P/2 + 1:        zs.append(Z_GRIPPER); z_plane.append(1)
-#            else:                                       zs.append(Z_UP);      z_plane.append(0)
+                  a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);
+            elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);
+            else:                                                                  z_plane.append(1);
             
         arms_config    = [list(robot.config[i, x,y,(z if gblock == 0 else robot.Z)]) for i,((x,y,z),gblock) in enumerate(zip(poss, z_plane))]
-        arms_loc       = [list(robot.location[x,y,z]) for x,y,z in poss]
-        #print(arms_loc)
 
-        #for ang in reversed(arms_config):
-        #    print(','.join([str(x) for x in ang]))
-
-        #for pos,z in zip(reversed(arms_loc), reversed(zs)):
-        #    x,y,_ = pos
-        #    src += '{} {} {}\n'.format(y,-x,z) # Axis conversion for RobotStudio
-        #print('a')
-
-        for i,(ang, pos, z_p, grip_info, grip, a) in enumerate(zip(reversed(arms_config), reversed(arms_loc), reversed(z_plane), reversed(gripper_action), reversed(gripper), reversed(joint_a))):
+        for i,(ang, grip) in enumerate(zip(reversed(arms_config), reversed(gripper))):
             # Format:  ANGLES, grip state
-            #if i==0: continue
             src += ','.join([str(x) for x in ang]) 
-            src += ',{}'.format(grip) 
-            # Add comment
-            if grip_info == GRIPPER_OPEN:
-                src += " # GRIPPER OPEN\n"
-            elif grip_info == GRIPPER_CLOSE:
-                src += " # GRIPPER CLOSE\n"
-            else:
-                x,y,_ = pos
-                z     = Z_GRIPPER[z_p]
-                src += ' # {} {} {}'.format(y,-x,z) # Axis conversion for RobotStudio
-                extra_src = ' (Arm {} - {}) STATE {}\n'.format(i, "PICK" if a==4 else "DROP", previous_next_state)
-                if grip_info == GRIPPER_UP:
-                    src += " GRIPPER UP"
-                    src += extra_src
-                elif grip_info == GRIPPER_DOWN:
-                    src += " GRIPPER DOWN"
-                    src += extra_src
-                else:
-                    src +='\n'
-       # print('b')
+            src += ',{}\n'.format(grip) 
 
     #print('NUM_STEPS ', num_steps)
-    
-    #print('\n')
-    #print('###############################################')
-    #print('# ADDITIONAL INFORMATION')
-    #print('#')
-    #print('# This plan is generated based on the next data')
-    #print('#')
-    #print('###############################################')
-    #print('')
-    arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
-    arms_loc    = [list(robot.location[x,y,z]) for x,y,z in initial_pos]
-    #print('# Init robot location')
-    #print('init_grid_pos = {} # Grid location'.format(initial_pos))
-    #print('init_xyz_pos  = {} # XYZ location (EE)'.format(arms_loc))
-    #print('init_ang_pos  = {} # Robot configuration'.format(arms_config))
-    #print('# Copy & paste intial configuration')
-    #for ang in arms_config:
-    #    print(','.join([str(x) for x in ang]))
-    #print('')
-    #print('# Pieces configuration')
-    #print('pieces_pos = {}'.format(pieces))
-
-    #print(" # Plan based on EE locations (instead of joints)")
-    #print(src)
     
     return arms_pos, num_steps, src
 
