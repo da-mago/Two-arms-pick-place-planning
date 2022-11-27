@@ -90,7 +90,6 @@ class Robot_YuMi():
             csv_data = [row for i,row in enumerate(csv_reader) if i>=1]
 
         distance  = np.zeros((M, N, Z, M, N, Z), dtype=np.uint16)
-        distance2  = np.zeros((M, N, Z, M, N, Z), dtype=np.uint16)
         idx = 0
         # Loop over excel file (order given by the excel format itself)
         excelZ = 3 # Trick to enable grid 3D with only 2 layers (being 3 layers in excel)
@@ -120,35 +119,6 @@ class Robot_YuMi():
 
                                 dist = int(float(row[6]))
                                 distance[xl,yl,zl,xr,yr,zr] = dist 
-
-                                x2l = 9 - (int(row[1]) + 450)//100
-                                x2r = 9 - (int(row[4]) + 450)//100
-                                y2l = (int(row[0]) - 200)//100
-                                y2r = (int(row[3]) - 200)//100
-                                z2l = (int(row[2]) - 180)//130
-                                z2r = (int(row[5]) - 180)//130
-                                distance2[x2l,y2l,z2l,x2r,y2r,z2r] = dist 
-                                d = distance2[x2l,y2l,z2l,x2r,y2r,z2r]
-
-        print(distance2.shape)
-        with open("pp.csv", "w") as f:
-            for z2l in range(excelZ):
-                for z2r in range(excelZ):
-                    for y2l in range(N):
-                        for x2l in range(M-1, -1, -1):
-                            for y2r in range(N):
-                                for x2r in range(M-1, -1, -1):
-                                    xl = 450 - x2l*100
-                                    xr = 450 - x2r*100
-                                    yl = 200 + y2l*100
-                                    yr = 200 + y2r*100
-                                    zl = 180 + z2l*130
-                                    zr = 180 + z2r*130
-                                    try:
-                                        f.write("{},{},{},{},{},{},{}\n".format(yl,xl,zl,yr,xr,zr, distance2[x2l,y2l,z2l,x2r,y2r,z2r]))
-                                    except:
-                                        pass
-        print("COMPELTE")
 
         return M, N, Z, distance, config, reachable, location
 
