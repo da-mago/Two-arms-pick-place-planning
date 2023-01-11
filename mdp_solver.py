@@ -10,9 +10,9 @@ class mdp_solver():
         - 2: Dijkstra
     '''
 
-    def __init__(self, MDP, single_nA):
+    def __init__(self, MDP, init_state=0):
         self.MDP = MDP
-        self.single_nA = single_nA
+        self.init_state = init_state
 
     def solve(self, algorithm=0):
 
@@ -21,13 +21,17 @@ class mdp_solver():
             #policy = self._npVI(discount_factor = 0.95)
             policy = self._npVI(discount_factor = 1)
         ## BFS (graph search)
-        #elif algorithm == 1:
-        #    path = BFS(MDP)
+        elif algorithm == 1:
+            # to keep the same interface, fake a policy object
+            policy = self._BFS()
         ## Dijkstra (graph search)
         #elif algorithm == 2:
         #    path = Dijkstra(MDP)
-
-
+        else:
+            print("Unknown algorithm")
+            import sys
+            sys.exit()
+            
         return policy
 
     def _npVI(self, theta=0.0001, discount_factor=1.0):
@@ -37,9 +41,9 @@ class mdp_solver():
             Do not iterate for each state at python level, use numpy power
         '''
     
-        print("Solving MDP")
+        print("Solving MDP by Value Iteration algorithm")
 
-        states, rewards = self.MDP
+        states, rewards  = self.MDP
         V = np.zeros(len(states), dtype=np.float32)
     
         self.rewards = rewards
@@ -74,6 +78,43 @@ class mdp_solver():
         policy = np.argmax(VA, axis=1)
     
         return policy
+
+
+    def _BFS(self):
+        ''' Bread First Serch algorithm '''
+    
+        print("Solving MDP by BFS algorithm")
+
+        states, rewards  = self.MDP
+        frontier = [self.init_state]
+        visited = []
+        linkedList = {}
+        while len(frontier)>0:
+            state = frontier[0]
+            frontier.pop(0)
+            visited.append(state)
+
+            for action in range(len(states[0])):
+                r = rewards[state, action] 
+                if r < (-1):
+                    # discard it (bad action)
+                    continue
+                elif r > 50:
+                    # Done
+                    next_state = states[state, action]
+                    linkedList[next_state] = state
+                    path = [next_state]
+                    while True:
+                        if next_state not in linkedList:
+                            break
+                        next_state = linkedList[next_state]
+                        path.insert(0, next_state)
+                    return path
+
+                next_state = states[state, action]
+                if next_state not in visited and next_state not in frontier:
+                    frontier.append(next_state)
+                    linkedList[next_state] = state
 
 
 if __name__ == "__main__":

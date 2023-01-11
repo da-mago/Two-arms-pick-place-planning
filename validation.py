@@ -118,6 +118,22 @@ if __name__ == "__main__":
          }
     ]
 
+# Pieces (config 1)
+    pieces_cfg = [
+        {'start': [ 450, 200, 180],
+         'end'  : [-250, 500, 180],
+         },
+        {'start': [-450, 200, 180],
+         'end'  : [ 250, 500, 180],
+         },
+        {'start': [ 350, 600, 180],
+         'end'  : [-250, 300, 180],
+         },
+        {'start': [-350, 600, 180],
+         'end'  : [ 250, 300, 180],
+         }
+    ]
+
     # Do basic sanity check on pieces and initial pos
     status = DoSanityCheck(pieces_cfg, armsGridPos)
 
@@ -135,8 +151,10 @@ if __name__ == "__main__":
         report = open(path, "w")
 
         tc_num = 1
-        for num_layers in [1,2,3]:
-            for action_mode in [0,1,2]:
+        #for num_layers in [1,2,3]:
+        for num_layers in [3]:
+            #for action_mode in [0,1,2]:
+            for action_mode in [2]:
                 #for num_pieces in [2, 4]:
                 for num_pieces in [4]:
                     for distance in [50]:
@@ -163,7 +181,7 @@ if __name__ == "__main__":
                         print(pieces)
                         # Solve MDP
                         f_reward, f_transition = robot_mdp.MDP[0:2]
-                        solver = mdp_solver([f_reward, f_transition], robot_mdp.single_nA)
+                        solver = mdp_solver([f_reward, f_transition])
                         policy = solver.solve()
         
                         # Validate solution

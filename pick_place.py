@@ -225,14 +225,14 @@ if __name__ == "__main__":
                'end'   : [  50, 200, 0],
               }
              ]
-    pieces = [ 
-              {'start' : [-250, 300, 0],  # Piece 1
-               'end'   : [ 250, 500, 0],
-              },
-              {'start' : [ 350, 200, 0],
-               'end'   : [-250, 500, 0],  # Piece 2
-              },                     
-          ]
+    #pieces = [ 
+    #          {'start' : [-250, 300, 0],  # Piece 1
+    #           'end'   : [ 250, 500, 0],
+    #          },
+    #          {'start' : [ 350, 200, 0],
+    #           'end'   : [-250, 500, 0],  # Piece 2
+    #          },                     
+    #      ]
 
     # Dump pieces info
     for i,piece in enumerate(pieces):
@@ -250,9 +250,17 @@ if __name__ == "__main__":
     print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
 
     # Solve MDP
-    solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]], robot_mdp.single_nA)
-    policy = solver.solve()
+    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+    solver = mdp_solver(robot_mdp.MDP[0:2], init_state)
+    policy = solver.solve(0)
     print("\n\nAlgorithm execution {}\n\n".format(time.time() - algorithm_time))
+    if isinstance(policy, list):
+        for state in policy:
+            int_state = robot_mdp.MDP[2][state]
+            arms_pos, _, _,_ = robot_mdp._ext2intState(int_state)
+            print(arms_pos)
+        import sys
+        sys.exit()
 
     # Dump more info
     num_steps = 0
