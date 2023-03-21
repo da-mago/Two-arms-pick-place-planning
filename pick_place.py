@@ -133,6 +133,16 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     print(src)
 
 
+def generateRobotStudioInputFromPath(path, initial_pos, pieces, robot, robot_mdp):
+    # TODO: Not yet implemented
+    #       Just returning the number of steps in the plan
+
+    return initial_pos, len(path), 'Not implemented\n'
+
+
+def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, robot, robot_mdp):
+    #TODO: remove generateTxtPlan (called from other files)
+    return generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp)
 
 def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
 
@@ -163,6 +173,7 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
         zs   = []
         z_plane = []
         joint_a = robot_mdp._ext2intAction(action)
+
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
@@ -194,8 +205,6 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
             src += ','.join([str(x) for x in ang]) 
             src += ',{}\n'.format(grip) 
 
-    #print('NUM_STEPS ', num_steps)
-    
     return arms_pos, num_steps, src
 
 

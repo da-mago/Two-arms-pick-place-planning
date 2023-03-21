@@ -15,7 +15,7 @@ CGREEN  = '\033[92m'
 CORANGE = '\033[93m'
 CEND    = '\033[0m'
 
-def validate(policy, initial_pos, pieces, robot_mdp):
+def validatePolicy(policy, initial_pos, pieces, robot_mdp):
 
     pieces_status = [1 for _ in range(robot_mdp.K)]
     next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
@@ -30,8 +30,8 @@ def validate(policy, initial_pos, pieces, robot_mdp):
         if max_iterations <= 0:
             break
 
-    if done: print("Validating: " + CGREEN + "PASS" + CEND)
-    else   : print("Validating: " + CRED   + "FAIL" + CEND)
+    if done: print("  Validating: " + CGREEN + "PASS" + CEND)
+    else   : print("  Validating: " + CRED   + "FAIL" + CEND)
 
     return done
 
@@ -152,9 +152,9 @@ if __name__ == "__main__":
 
         tc_num = 1
         #for num_layers in [1,2,3]:
-        for num_layers in [3]:
+        for num_layers in [1]:
             #for action_mode in [0,1,2]:
-            for action_mode in [2]:
+            for action_mode in [0]:
                 #for num_pieces in [2, 4]:
                 for num_pieces in [4]:
                     for distance in [50]:
@@ -176,35 +176,46 @@ if __name__ == "__main__":
                         t0 = time.time()
                         robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
                         t1 = time.time()
+                        time_offline = t1 - t0
+                        print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
                         robot_mdp.update()
         
-                        print(pieces)
-                        # Solve MDP
-                        f_reward, f_transition = robot_mdp.MDP[0:2]
-                        solver = mdp_solver([f_reward, f_transition])
-                        policy = solver.solve()
+                        for algorithm in [mdp_solver.VALUE_ITERATION, mdp_solver.BFS]:
+                            # Solve MDP
+                            f_reward, f_transition = robot_mdp.MDP[0:2]
+                            init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+                            solver = mdp_solver([f_reward, f_transition], init_state)
+                            policy, path = solver.solve(algorithm)
         
-                        # Validate solution
-                        status = validate(policy, armsGridPos, pieces, robot_mdp)
-                        t2 = time.time()
+                            if policy is not None:
+                                # Validate policy
+                                status = validatePolicy(policy, armsGridPos, pieces, robot_mdp)
+                            else:
+                                status = True
 
-                        # Generate RobotStudio Plan
-                        if status:
-                            print("Generating RobotStudio plan")
-                            _, _, plan = pick_place.generateTxtPlan(policy, armsGridPos, pieces, robot, robot_mdp)
+                            t2 = time.time()
+
+                            # Generate RobotStudio Plan
+                            if status:
+                                print("  Generating RobotStudio plan")
+                                if policy is not None:
+                                    _, steps, plan = pick_place.generateRobotStudioInputFromPolicy(policy, armsGridPos, pieces, robot, robot_mdp)
+                                else:
+#                                    for p in path:
+#                                        print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
+                                    _, steps, plan = pick_place.generateRobotStudioInputFromPath(path, armsGridPos, pieces, robot, robot_mdp)
     
-                            filename = "RobotStudio_{}.txt".format(tc_name)
-                            path = os.path.join(folder, filename)
-                            with open(path, "w") as f:
-                                f.write(plan)
+                                filename = "RobotStudio_{}_alg{}.txt".format(tc_name, algorithm)
+                                path = os.path.join(folder, filename)
+                                with open(path, "w") as f:
+                                    f.write(plan)
             
-                        time_online  = t2- t1
-                        time_offline = t1- t0
-                        print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
-                        print("Time Online : {}h {}m {}s".format(int(time_online/3600),  int((time_online%3600)/60),  int(time_online%60)))
+                            time_online  = t2 - t1
+                            print("  Number of steps: {}".format(steps))
+                            print("  Time Online : {}h {}m {}s".format(int(time_online/3600),  int((time_online%3600)/60),  int(time_online%60)))
     
-                        # Fill report
-                        report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
+                            # Fill report
+                            report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
 
                         tc_num += 1
 

@@ -10,6 +10,11 @@ class mdp_solver():
         - 2: Dijkstra
     '''
 
+    # Algorithms
+    VALUE_ITERATION = 0
+    BFS = 1
+    DIJKSTRA = 2
+
     def __init__(self, MDP, init_state=0):
         self.MDP = MDP
         self.init_state = init_state
@@ -17,31 +22,35 @@ class mdp_solver():
     def solve(self, algorithm=0):
 
         # Value Iteration
-        if algorithm == 0:
-            #policy = self._npVI(discount_factor = 0.95)
-            policy = self._npVI(discount_factor = 1)
+        if algorithm == mdp_solver.VALUE_ITERATION:
+            path = None
+            #policy = self._matrixValueIteration(discount_factor = 0.95)
+            policy = self._matrixValueIteration(discount_factor = 1)
         ## BFS (graph search)
-        elif algorithm == 1:
+        elif algorithm == mdp_solver.BFS:
             # to keep the same interface, fake a policy object
-            policy = self._BFS()
+            path = self._BFS()
+            policy = None
         ## Dijkstra (graph search)
-        #elif algorithm == 2:
+        #elif algorithm == mdp_solver.DIJKSTRA:
+
         #    path = Dijkstra(MDP)
+        #    policy = None
         else:
             print("Unknown algorithm")
             import sys
             sys.exit()
             
-        return policy
+        return policy, path
 
-    def _npVI(self, theta=0.0001, discount_factor=1.0):
+    def _matrixValueIteration(self, theta=0.0001, discount_factor=1.0):
         ''' Value Iteration.
 
-            Note: npVI stands for NumPy Value Iteration.
-            Do not iterate for each state at python level, use numpy power
+            Do not iterate for each state-action pair at python level, 
+            model it as matrices and let numpy do the magic
         '''
     
-        print("Solving MDP by Value Iteration algorithm")
+        print("Solver: Value Iteration")
 
         states, rewards  = self.MDP
         V = np.zeros(len(states), dtype=np.float32)
@@ -83,13 +92,15 @@ class mdp_solver():
     def _BFS(self):
         ''' Bread First Serch algorithm '''
     
-        print("Solving MDP by BFS algorithm")
+        print("Solver: BFS")
 
         states, rewards  = self.MDP
         frontier = [self.init_state]
         visited = []
         linkedList = {}
+        count= 0
         while len(frontier)>0:
+            count += 1
             state = frontier[0]
             frontier.pop(0)
             visited.append(state)
@@ -108,6 +119,10 @@ class mdp_solver():
                         if next_state not in linkedList:
                             break
                         next_state = linkedList[next_state]
+
+                        if next_state == self.init_state:
+                            # not including initial state
+                            break
                         path.insert(0, next_state)
                     return path
 
@@ -115,6 +130,9 @@ class mdp_solver():
                 if next_state not in visited and next_state not in frontier:
                     frontier.append(next_state)
                     linkedList[next_state] = state
+
+        print("  Path not found!!!", count)
+        return []
 
 
 if __name__ == "__main__":
