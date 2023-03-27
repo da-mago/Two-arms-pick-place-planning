@@ -65,7 +65,7 @@ class mdp_generator(env_pickplace):
 
         print("Computing MDP ", end='', flush=True)
         # Note: MDP is very large. Use numpy
-        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
+        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.uint32) 
         mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int16)
         mdp_v = np.array(valid_states)
         mdp_i = {x:i for i,x in enumerate(mdp_v)}

@@ -152,9 +152,9 @@ if __name__ == "__main__":
 
         tc_num = 1
         #for num_layers in [1,2,3]:
-        for num_layers in [1]:
+        for num_layers in [2]:
             #for action_mode in [0,1,2]:
-            for action_mode in [0]:
+            for action_mode in [1]:
                 #for num_pieces in [2, 4]:
                 for num_pieces in [4]:
                     for distance in [50]:
@@ -180,10 +180,12 @@ if __name__ == "__main__":
                         print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
                         robot_mdp.update()
         
-                        for algorithm in [mdp_solver.VALUE_ITERATION, mdp_solver.BFS]:
+                        for algorithm in [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]:
+                        #for algorithm in [mdp_solver.ALG_BFS]:
                             # Solve MDP
                             f_reward, f_transition = robot_mdp.MDP[0:2]
                             init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+                            t1 = time.time()
                             solver = mdp_solver([f_reward, f_transition], init_state)
                             policy, path = solver.solve(algorithm)
         
@@ -201,8 +203,8 @@ if __name__ == "__main__":
                                 if policy is not None:
                                     _, steps, plan = pick_place.generateRobotStudioInputFromPolicy(policy, armsGridPos, pieces, robot, robot_mdp)
                                 else:
-#                                    for p in path:
-#                                        print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
+                                    #for p in path:
+                                    #    print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
                                     _, steps, plan = pick_place.generateRobotStudioInputFromPath(path, armsGridPos, pieces, robot, robot_mdp)
     
                                 filename = "RobotStudio_{}_alg{}.txt".format(tc_name, algorithm)
@@ -212,7 +214,7 @@ if __name__ == "__main__":
             
                             time_online  = t2 - t1
                             print("  Number of steps: {}".format(steps))
-                            print("  Time Online : {}h {}m {}s".format(int(time_online/3600),  int((time_online%3600)/60),  int(time_online%60)))
+                            print("  Time Online : {}h {}m {:0.3f}s".format(int(time_online/3600),  int((time_online%3600)/60),  time_online%60))
     
                             # Fill report
                             report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))

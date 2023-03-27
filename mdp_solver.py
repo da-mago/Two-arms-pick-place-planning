@@ -1,4 +1,10 @@
 import numpy as np
+import time
+from subprocess import Popen, PIPE
+import ctypes
+from numpy.ctypeslib import ndpointer
+
+
 
 class mdp_solver():
     ''' Find an optimal solution for a tabular MDP.
@@ -11,28 +17,42 @@ class mdp_solver():
     '''
 
     # Algorithms
-    VALUE_ITERATION = 0
-    BFS = 1
-    DIJKSTRA = 2
+    ALG_VALUE_ITERATION = 0
+    ALG_BFS = 1
+    ALG_DIJKSTRA = 2
 
     def __init__(self, MDP, init_state=0):
         self.MDP = MDP
         self.init_state = init_state
 
+        # Load BFS C implementation
+        lib = ctypes.cdll.LoadLibrary("./c_bfs.so")
+
+        lib.BFS.restype = None
+        lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
+                             ctypes.c_size_t,  # n_states
+                             ctypes.c_size_t,  # n_actions
+                             ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS"),  # states
+                             ndpointer(ctypes.c_int16, flags="C_CONTIGUOUS"),  # rewards
+                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
+                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS")] # path_len
+
+        self.C_BFS = lib.BFS
+
     def solve(self, algorithm=0):
 
         # Value Iteration
-        if algorithm == mdp_solver.VALUE_ITERATION:
+        if algorithm == mdp_solver.ALG_VALUE_ITERATION:
             path = None
             #policy = self._matrixValueIteration(discount_factor = 0.95)
             policy = self._matrixValueIteration(discount_factor = 1)
         ## BFS (graph search)
-        elif algorithm == mdp_solver.BFS:
+        elif algorithm == mdp_solver.ALG_BFS:
             # to keep the same interface, fake a policy object
             path = self._BFS()
             policy = None
         ## Dijkstra (graph search)
-        #elif algorithm == mdp_solver.DIJKSTRA:
+        #elif algorithm == mdp_solver.ALG_DIJKSTRA:
 
         #    path = Dijkstra(MDP)
         #    policy = None
@@ -94,46 +114,66 @@ class mdp_solver():
     
         print("Solver: BFS")
 
-        states, rewards  = self.MDP
-        frontier = [self.init_state]
-        visited = []
-        linkedList = {}
-        count= 0
-        while len(frontier)>0:
-            count += 1
-            state = frontier[0]
-            frontier.pop(0)
-            visited.append(state)
+        states     = self.MDP[0]
+        rewards    = self.MDP[1]
 
-            for action in range(len(states[0])):
-                r = rewards[state, action] 
-                if r < (-1):
-                    # discard it (bad action)
-                    continue
-                elif r > 50:
-                    # Done
-                    next_state = states[state, action]
-                    linkedList[next_state] = state
-                    path = [next_state]
-                    while True:
-                        if next_state not in linkedList:
-                            break
-                        next_state = linkedList[next_state]
+        # Call BFS from C shared library
+        if True
+            path       = np.ones((100,), dtype=np.uint32)
+            path_len   = np.ones((1,), dtype=np.uint32)
+            n_states   = len(states)
+            n_actions  = len(states[0])
+            self.C_BFS(self.init_state, n_states, n_actions, states, rewards, path, path_len)
+            path_len = int(path_len)
+            path = path[0:path_len][::-1]
+            return path
 
-                        if next_state == self.init_state:
-                            # not including initial state
-                            break
-                        path.insert(0, next_state)
-                    return path
-
-                next_state = states[state, action]
-                if next_state not in visited and next_state not in frontier:
-                    frontier.append(next_state)
-                    linkedList[next_state] = state
-
-        print("  Path not found!!!", count)
-        return []
-
+        # Python BFS version
+        else:
+            n_states = len(states)
+            frontier = [0 for _ in range(n_states)]
+            visited  = [0 for _ in range(n_states)]
+            frontier_fifo = [init_state]
+            linkedList = {}
+            count= 0
+            while len(frontier_fifo)>0:
+                count += 1
+                state = frontier_fifo[0]
+                frontier_fifo.pop(0)
+                frontier[state] = 0
+                visited[state] = 1
+    
+                for action in range(len(states[0])):
+                    r = rewards[state,action] 
+                    if r < (-1):
+                        # discard it (bad action)
+                        continue
+                    elif r > 50:
+                        # Done
+                        next_state = states[state,action]
+                        linkedList[next_state] = state
+                        path = [next_state]
+                        while True:
+                            print("{} ".format(next_state))
+                            if next_state not in linkedList:
+                                break
+                            next_state = linkedList[next_state]
+    
+                            if next_state == init_state:
+                                # not including initial state
+                                print("{} init state\n".format(next_state))
+                                break
+                            path.insert(0, next_state)
+                        return path
+    
+                    next_state = states[state,action]
+                    if visited[next_state] == 0 and frontier[next_state] == 0:
+                        frontier[next_state] = 1
+                        frontier_fifo.append(next_state)
+                        linkedList[next_state] = state
+    
+            print("  Path not found!!!", count)
+            return []
 
 if __name__ == "__main__":
 
