@@ -10,15 +10,17 @@
 void BFS(uint32_t  init_state,
          uint32_t  n_states,
          uint32_t  n_actions,
-         int32_t *states,
+         uint32_t *states,
          int16_t  *rewards,
          uint32_t *path,
-         uint32_t *path_len)
+         uint32_t *path_len,
+         uint16_t *actions)
 {
   uint8_t  *frontier;
   uint8_t  *visited;
   uint32_t *frontier_fifo;
-  uint32_t *predecessor;
+  uint32_t *state_previous;
+  uint16_t *action_previous;
   uint32_t tmp = 0;
   uint32_t rp = 0, wp = 0;
   uint32_t next_state;
@@ -27,11 +29,13 @@ void BFS(uint32_t  init_state,
 
   frontier = calloc(n_states, 1);
   visited  = calloc(n_states, 1);
-  frontier_fifo = calloc(n_states, 4);
-  predecessor   = calloc(n_states, 4);
+  frontier_fifo   = calloc(n_states, 4);
+  state_previous  = calloc(n_states, 4);
+  action_previous = calloc(n_states, 2);
 
-  if ((frontier == NULL) || (visited == NULL) || 
-      (frontier_fifo == NULL) || (predecessor == NULL)) return;
+  if ((frontier == NULL) || (visited == NULL) || (frontier_fifo == NULL) ||
+      (state_previous == NULL) || (action_previous == NULL)) 
+          return;
 
   frontier_fifo[wp++] = init_state;
 
@@ -56,24 +60,28 @@ void BFS(uint32_t  init_state,
           {
               // Done
               next_state = states[state*n_actions + action];
-              predecessor[next_state] = state;
+              state_previous[next_state] = state;
+              action_previous[next_state] = action;
               // Compute path
               while (1)
               {
-                  path[path_idx++] = next_state;
+                  path[path_idx] = next_state;
+                  actions[path_idx] = action_previous[next_state];
+                  path_idx++;
                   tmp++;
-                  if (predecessor[next_state] == 0)
+                  if (state_previous[next_state] == 0)
                   {
                       printf("not found\n");
                       break;
                   }
-                  next_state = predecessor[next_state];
+                  next_state = state_previous[next_state];
     
                   if (next_state == init_state)
                   {
                       // not including initial state
                       *path_len = path_idx;
                       path[path_idx++] = next_state;
+                      actions[path_idx++] = action_previous[next_state];
                       break;
                   }
               }
@@ -86,7 +94,8 @@ void BFS(uint32_t  init_state,
               {
                   frontier[next_state] = 1;
                   frontier_fifo[wp] = next_state;
-                  predecessor[next_state] = state;
+                  state_previous[next_state] = state;
+                 action_previous[next_state] = action;
                   if (++wp == n_states) wp = 0;
               }
           }
@@ -97,5 +106,6 @@ release:
   free(frontier);
   free(visited);
   free(frontier_fifo);
-  free(predecessor);
+  free(state_previous);
+  free(action_previous);
 }

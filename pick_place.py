@@ -133,18 +133,18 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     print(src)
 
 
-def generateRobotStudioInputFromPath(path, initial_pos, pieces, robot, robot_mdp):
+def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, robot, robot_mdp):
     # TODO: Not yet implemented
     #       Just returning the number of steps in the plan
 
-    return initial_pos, len(path), 'Not implemented\n'
+    return generateTxtPlan(None, pathNactions, initial_pos, pieces, robot, robot_mdp)
 
 
 def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, robot, robot_mdp):
     #TODO: remove generateTxtPlan (called from other files)
-    return generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp)
+    return generateTxtPlan(policy, None, initial_pos, pieces, robot, robot_mdp)
 
-def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
+def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp):
 
     src  = ''
 
@@ -163,10 +163,20 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
 
     done = False
     while done == False:
+
+        if policy is None:
+            # Path is directly a list of states
+            action = pathNactions[1][num_steps]
+            state_idx_ext = pathNactions[0][num_steps]
+            state_idx_int = robot_mdp.MDP[2][state_idx_ext]
+            done = True if (num_steps >= (len(pathNactions[0]) - 1)) else False
+        else:
+            # Policy is action=f(state)
+            state_idx_ext = robot_mdp.MDP[3][state_idx_int]
+            action = policy[state_idx_ext]
+            state_idx_int, _, done, _ = robot_mdp._step(action)
+
         num_steps += 1
-        state_idx_ext = robot_mdp.MDP[3][state_idx_int]
-        action = policy[state_idx_ext]
-        state_idx_int, reward, done, info = robot_mdp._step(action)
 
         arms_pos, _, _, pick_pos = robot_mdp._ext2intState(state_idx_int)
         poss = []

@@ -32,10 +32,11 @@ class mdp_solver():
         lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
                              ctypes.c_size_t,  # n_states
                              ctypes.c_size_t,  # n_actions
-                             ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS"),  # states
+                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
                              ndpointer(ctypes.c_int16, flags="C_CONTIGUOUS"),  # rewards
                              ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS")] # path_len
+                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
+                             ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
 
         self.C_BFS = lib.BFS
 
@@ -118,15 +119,20 @@ class mdp_solver():
         rewards    = self.MDP[1]
 
         # Call BFS from C shared library
-        if True
+        if True:
             path       = np.ones((100,), dtype=np.uint32)
             path_len   = np.ones((1,), dtype=np.uint32)
+            actions    = np.ones((100,), dtype=np.uint16)
             n_states   = len(states)
             n_actions  = len(states[0])
-            self.C_BFS(self.init_state, n_states, n_actions, states, rewards, path, path_len)
+            self.C_BFS(self.init_state, n_states, n_actions, states, rewards, path, path_len, actions)
             path_len = int(path_len)
-            path = path[0:path_len][::-1]
-            return path
+            path = path[:path_len][::-1]
+            actions = actions[:path_len][::-1]
+
+            pathNactions = [path, actions]
+
+            return pathNactions
 
         # Python BFS version
         else:

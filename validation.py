@@ -156,7 +156,7 @@ if __name__ == "__main__":
             #for action_mode in [0,1,2]:
             for action_mode in [1]:
                 #for num_pieces in [2, 4]:
-                for num_pieces in [4]:
+                for num_pieces in [2]:
                     for distance in [50]:
         
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                             init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
                             t1 = time.time()
                             solver = mdp_solver([f_reward, f_transition], init_state)
-                            policy, path = solver.solve(algorithm)
+                            policy, pathNactions = solver.solve(algorithm)
         
                             if policy is not None:
                                 # Validate policy
@@ -205,7 +205,7 @@ if __name__ == "__main__":
                                 else:
                                     #for p in path:
                                     #    print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
-                                    _, steps, plan = pick_place.generateRobotStudioInputFromPath(path, armsGridPos, pieces, robot, robot_mdp)
+                                    _, steps, plan = pick_place.generateRobotStudioInputFromPath(pathNactions, armsGridPos, pieces, robot, robot_mdp)
     
                                 filename = "RobotStudio_{}_alg{}.txt".format(tc_name, algorithm)
                                 path = os.path.join(folder, filename)
