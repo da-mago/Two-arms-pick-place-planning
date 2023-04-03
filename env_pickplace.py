@@ -164,18 +164,21 @@ class env_pickplace:
         self.ACTION_RIGHT            = 1
         self.ACTION_BACK             = 2
         self.ACTION_FRONT            = 3
-        self.ACTION_DOWN             = 4
-        self.ACTION_UP               = 5
-        self.ACTION_NEXT             = self.ACTION_UP + 1
-        if globalCfg.actions_mode != Cfg.ACTIONS_BASIC:
-            # Add diafonal 2D
+        self.ACTION_NEXT             = 4
+        if globalCfg.actions_mode > Cfg.ACTIONS_ORTHO_2D:
+            # Add diagonal 2D
             self.ACTION_LEFT_FRONT       = self.ACTION_NEXT
             self.ACTION_LEFT_BACK        = self.ACTION_NEXT + 1
             self.ACTION_RIGHT_FRONT      = self.ACTION_NEXT + 2
             self.ACTION_RIGHT_BACK       = self.ACTION_NEXT + 3
             self.ACTION_NEXT             = self.ACTION_NEXT + 4
-        if globalCfg.actions_mode == Cfg.ACTIONS_DIAGONAL_2D_3D:
-            # Add diafonal 3D
+        if globalCfg.actions_mode > Cfg.ACTIONS_ORTHO_2D_DIAG_2D:
+            # Add orthogonal 2D
+            self.ACTION_DOWN             = self.ACTION_NEXT
+            self.ACTION_UP               = self.ACTION_NEXT + 1
+            self.ACTION_NEXT             = self.ACTION_NEXT + 2 
+        if globalCfg.actions_mode > Cfg.ACTIONS_ORTHO_3D_DIAG_2D:
+            # Add diagonal 3D
             self.ACTION_UP_LEFT          = self.ACTION_NEXT
             self.ACTION_UP_LEFT_FRONT    = self.ACTION_NEXT + 1
             self.ACTION_UP_FRONT         = self.ACTION_NEXT + 2
@@ -719,21 +722,23 @@ class env_pickplace:
         move_both_arms       = True 
 
         # helper for adjacent moves
-        offset_action_basic = np.array([
+        offset_action_ortho_2d = np.array([
                              [ 1, 0, 0],  # Left
                              [-1, 0, 0],  # Right
                              [ 0, 1, 0],  # Back
-                             [ 0,-1, 0],  # Front
-                             [ 0, 0,-1],  # Down
-                             [ 0, 0, 1]]) # Up
+                             [ 0,-1, 0]]) # Front
                             
-        offset_action_2D_diag = np.array([
+        offset_action_ortho_2D_diag_2d = np.array([
                              [ 1,-1, 0],  # Left-Front
                              [-1,-1, 0],  # Right-Front
                              [-1, 1, 0],  # Right-Back
                              [ 1, 1, 0]]) # Left-Back
 
-        offset_action_3D_diag = np.array([
+        offset_action_ortho_3d_diag_2d = np.array([
+                             [ 0, 0,-1],  # Down
+                             [ 0, 0, 1]]) # Up
+
+        offset_action_ortho_3d_diag_3d = np.array([
                              [ 1, 0, 1],  # Up-Left
                              [ 1,-1, 1],  # Up-Left-Front
                              [ 0,-1, 1],  # Up-Front
@@ -751,11 +756,13 @@ class env_pickplace:
                              [ 0, 1,-1],  # Down-Back
                              [ 1, 1,-1]]) # Down-Left-Back
 
-        offset_a = offset_action_basic
-        if self.actions_mode != Cfg.ACTIONS_BASIC:
-            offset_a = np.concatenate((offset_a, offset_action_2D_diag))
-        if self.actions_mode == Cfg.ACTIONS_DIAGONAL_2D_3D:
-            offset_a = np.concatenate((offset_a, offset_action_3D_diag))
+        offset_a = offset_action_ortho_2d
+        if self.actions_mode > Cfg.ACTIONS_ORTHO_2D:
+            offset_a = np.concatenate((offset_a, offset_action_ortho_2D_diag_2d))
+        if self.actions_mode > Cfg.ACTIONS_ORTHO_2D_DIAG_2D:
+            offset_a = np.concatenate((offset_a, offset_action_ortho_3d_diag_2d))
+        if self.actions_mode > Cfg.ACTIONS_ORTHO_3D_DIAG_2D:
+            offset_a = np.concatenate((offset_a, offset_action_ortho_3d_diag_3d))
 
         #print(self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos))
         joint_a = self._ext2intAction(action)

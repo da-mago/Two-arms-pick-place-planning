@@ -57,7 +57,6 @@ class mdp_generator(env_pickplace):
         valid_nS = len(valid_states)
         print("Num states : {} (out of {})".format(valid_nS, self.nS))
         print("Num actions: {}".format(self.nA))
-        #return valid_states
 
         states_idx = {}
         for i, item in enumerate(valid_states):
