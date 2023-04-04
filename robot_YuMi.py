@@ -20,12 +20,7 @@ class Robot_YuMi():
         self.z            = 180   # Default z value for robot EEs
         self.unknown_pos  = [-1,-1,-1]
 
-        #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance.csv')    
-        #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'AlcanceWo200M150180.csv')    
-        #self.M, self.N, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v5.csv')    
-        #self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Collision_v3.csv', 'Alcance_v11.csv')    
-        #self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v5.csv', 'Alcance_grid3D_v4.csv')    
-        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v6.csv', 'Alcance_grid3D_v4.csv')    
+        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v6.csv', 'Alcance_grid3D_v6.csv')    
 
     def _loadCSV(self, distanceFilename, configFilename):
         ''' Read and process robot data from csv file '''
