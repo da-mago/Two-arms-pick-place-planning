@@ -158,8 +158,7 @@ if __name__ == "__main__":
                        [3    , Cfg.ACTIONS_ORTHO_3D_DIAG_2D],  # 2
                        [3    , Cfg.ACTIONS_ORTHO_3D_DIAG_3D] ] # 3 
 
-        #test_num_pieces = [2, 4, 6, 8, 9, 10]
-        test_num_pieces = [6, 8, 9, 10]
+        test_num_pieces = [2, 4, 6, 8, 9, 10]
 
         tc_num = 1
         distance = 50

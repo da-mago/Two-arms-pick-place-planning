@@ -2,11 +2,18 @@
 #include <stddef.h> 
 #include <stdint.h> 
 #include <stdlib.h>
+#include "c_bfs.h"
 
-/* Instructions: compile shared lib (c_bfs.so) with:
- * $ gcc -fPIC -shared -o c_bfs.so c_bfs.c
+/* How to compile:
+ *
+ * - Linux   
+ *   $ gcc -fPIC -shared -o c_bfs.so c_bfs.c
+ *
+ * - Windows (x64 Native Tools Command Prompt for VS 2022)
+ *   $ cl /LD bfs.c /Fe:bfs.dll 
  */
 
+MYLIB_EXPORT 
 void BFS(uint32_t  init_state,
          uint32_t  n_states,
          uint32_t  n_actions,
@@ -46,7 +53,7 @@ void BFS(uint32_t  init_state,
       visited[state]  = 1;
       if (++rp == n_states) rp = 0;
   
-      for (int action=0; action < n_actions; action++)
+      for (uint32_t action = 0; action < n_actions; action++)
       {
           int16_t r;
 

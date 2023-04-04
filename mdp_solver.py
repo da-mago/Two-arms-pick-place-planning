@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import platform
 from subprocess import Popen, PIPE
 import ctypes
 from numpy.ctypeslib import ndpointer
@@ -26,7 +27,12 @@ class mdp_solver():
         self.init_state = init_state
 
         # Load BFS C implementation
-        lib = ctypes.cdll.LoadLibrary("./c_bfs.so")
+        if platform.system() == "Windows":
+            filename = "./c_bfs.dll"
+        else:
+            filename = "./c_bfs.so"
+
+        lib = ctypes.cdll.LoadLibrary(filename)
 
         lib.BFS.restype = None
         lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
