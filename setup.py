@@ -5,6 +5,6 @@ with open('requirements.txt', 'r') as f:
 
 setuptools.setup(
     name='Two-arms-pick-place-planning',
-    packages=['Two-arms-pick-place-planninig'],
+    packages=['Two-arms-pick-place-planning'],
     install_requires=install_requires
     )
