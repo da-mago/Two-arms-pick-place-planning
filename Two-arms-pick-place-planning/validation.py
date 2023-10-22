@@ -124,9 +124,11 @@ if __name__ == "__main__":
 
         # Clean output folder
         folder = 'output'
-        #if os.path.exists(folder):
-        #    shutil.rmtree(folder)
-        #os.mkdir(folder)
+        if os.path.exists(folder):
+            pass
+            #shutil.rmtree(folder)
+        else:
+            os.mkdir(folder)
 
         # Create validation report
         path = os.path.join(folder, "README.txt")
