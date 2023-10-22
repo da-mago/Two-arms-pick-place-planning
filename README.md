@@ -1,8 +1,12 @@
 # Two-arms-pick-place-planning
 
-This repository contains the source code accompanying this paper:
+| Value Iteration | BFS | PDDL |
+|-----------------|-----|------|
+| [![Value Iteration](images/thumb.jpg)](https://youtu.be/cXEfuw8WPqA) | [![Value Iteration](images/thumb.jpg)](https://youtu.be/2T0z_3_9az8) | [![PDDL](images/thumb.jpg)](https://www.youtube.com/watch?v=vV5W80SKIOo) |
 
-   xxxxxx not yet available xxxxxx
+This repository contains the accompanying source code for the paper:
+
+"Multi-arm Trajectory Planning for Optimal Collission Free Pick-and-Place Operations"
 
 ![Robot setup picture missing](images/setup2.jpg)
 
@@ -15,11 +19,13 @@ Download the repository and make sure all dependencies are satisfied:
 The problem at hand is a multi-robot pick&place task. This project purpose is to find a way to automate the generation of a solution to this problem.
 This includes managing high level concepts such as trajectories, collision avoidance, task time minimization, ...
 
-Note: the source code is intended to be generic on the number of robots and pieces, but currently it is supporting only two robots use case.
+> [!NOTE]  
+> Source code is intended to be generic on the number of robots and pieces, but currently it is supporting only two robots use case.
 
 This repository implements three different algorithms to solve the problem: Value Iteration, BFS and PDDL. In the first case, the problem is modeled as Markov Decision Process. In the second case, it is modeled as a graph and in the latter one, in PPDL language.
 
-Note: BFS algorithm is implemented in C and later imported in the python project as a module
+> [!NOTE]  
+> BFS algorithm is implemented in C and later imported in the python project as a module
 Example (10 pieces use-case):
 
 # Execution
@@ -61,4 +67,13 @@ Example:
     num_layers = 1
     action_mode = Cfg.ACTIONS_ORTHO_2D
 
+    # Select Value Iteration or BFS
+    algorithm = mdp_solver.ALG_BFS
+
 In the case of PDDL, there is a file definition per use (depending on the action mode and the number of pieces). You need to edit the appropriate one and update initial location of the robots and initial and fina location of the pieces.
+
+# Simulations
+| Value Iteration | BFS | PDDL |
+| -- | -- |
+| [![Value Iteration](images/setup2.jpg)](https://youtu.be/cXEfuw8WPqA) | [![Value Iteration](images/setup2.jpg)](https://youtu.be/2T0z_3_9az8) | [PDDL](https://www.youtube.com/watch?v=vV5W80SKIOo) |
+
