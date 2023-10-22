@@ -65,7 +65,7 @@ Example:
     # Select Value Iteration or BFS
     algorithm = mdp_solver.ALG_BFS
 
-In the case of PDDL, there is a file definition per use (depending on the action mode and the number of pieces). You need to edit the appropriate one and update initial location of the robots and initial and fina location of the pieces.
+In the case of PDDL, there is a file definition per use case (depending on the action mode and the number of pieces). You need to edit the appropriate one and update initial location of the robots and initial and final location of the pieces.
 
 # Simulations
 | Value Iteration | BFS | PDDL |
