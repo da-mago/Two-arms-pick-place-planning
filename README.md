@@ -1,9 +1,4 @@
 # Two-arms-pick-place-planning
-
-| Value Iteration | BFS | PDDL |
-|-----------------|-----|------|
-| [![Value Iteration](images/thumb.jpg)](https://youtu.be/cXEfuw8WPqA) | [![Value Iteration](images/thumb.jpg)](https://youtu.be/2T0z_3_9az8) | [![PDDL](images/thumb.jpg)](https://www.youtube.com/watch?v=vV5W80SKIOo) |
-
 This repository contains the accompanying source code for the paper:
 
 "Multi-arm Trajectory Planning for Optimal Collission Free Pick-and-Place Operations"
@@ -74,6 +69,5 @@ In the case of PDDL, there is a file definition per use (depending on the action
 
 # Simulations
 | Value Iteration | BFS | PDDL |
-| -- | -- |
-| [![Value Iteration](images/setup2.jpg)](https://youtu.be/cXEfuw8WPqA) | [![Value Iteration](images/setup2.jpg)](https://youtu.be/2T0z_3_9az8) | [PDDL](https://www.youtube.com/watch?v=vV5W80SKIOo) |
-
+|-----------------|-----|------|
+| [![Value Iteration](images/thumb.jpg)](https://youtu.be/cXEfuw8WPqA) | [![Value Iteration](images/thumb.jpg)](https://youtu.be/2T0z_3_9az8) | [![PDDL](images/thumb.jpg)](https://www.youtube.com/watch?v=vV5W80SKIOo) |
