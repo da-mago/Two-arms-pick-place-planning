@@ -20,7 +20,7 @@ class Robot_YuMi():
         self.z            = 180   # Default z value for robot EEs
         self.unknown_pos  = [-1,-1,-1]
 
-        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('Colision_grid3D_v6.csv', 'Alcance_grid3D_v6.csv')    
+        self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('db_collision.csv', 'db_joint_cfg.csv')    
 
     def _loadCSV(self, distanceFilename, configFilename):
         ''' Read and process robot data from csv file '''
@@ -44,7 +44,7 @@ class Robot_YuMi():
 
         location  = np.zeros((M, N, Z, 3), dtype=np.int16)
         reachable = np.zeros((NUM_ARMS, M, N, Z), dtype=np.uint8)
-        config    = np.zeros((NUM_ARMS, M, N, Z+1, NUM_ANGLES), dtype=np.float) #+1 for open/close poses
+        config    = np.zeros((NUM_ARMS, M, N, Z+1, NUM_ANGLES), dtype=float) #+1 for open/close poses
         idx = 0
         for z in range(Z+1):
             for y in range(N):

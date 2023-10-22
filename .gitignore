@@ -1,0 +1,6 @@
+# Pycache and compiled python files.
+__pycache__/
+*py[cod]__pycache__/*
+
+# Output folder
+output
