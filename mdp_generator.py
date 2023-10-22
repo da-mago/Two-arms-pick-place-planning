@@ -57,7 +57,6 @@ class mdp_generator(env_pickplace):
         valid_nS = len(valid_states)
         print("Num states : {} (out of {})".format(valid_nS, self.nS))
         print("Num actions: {}".format(self.nA))
-        #return valid_states
 
         states_idx = {}
         for i, item in enumerate(valid_states):
@@ -65,7 +64,7 @@ class mdp_generator(env_pickplace):
 
         print("Computing MDP ", end='', flush=True)
         # Note: MDP is very large. Use numpy
-        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.int32) 
+        mdp_s = np.zeros((valid_nS, self.nA), dtype=np.uint32) 
         mdp_r = np.zeros((valid_nS, self.nA), dtype=np.int16)
         mdp_v = np.array(valid_states)
         mdp_i = {x:i for i,x in enumerate(mdp_v)}

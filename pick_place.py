@@ -133,8 +133,18 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     print(src)
 
 
+def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, robot, robot_mdp):
+    # TODO: Not yet implemented
+    #       Just returning the number of steps in the plan
 
-def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
+    return generateTxtPlan(None, pathNactions, initial_pos, pieces, robot, robot_mdp)
+
+
+def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, robot, robot_mdp):
+    #TODO: remove generateTxtPlan (called from other files)
+    return generateTxtPlan(policy, None, initial_pos, pieces, robot, robot_mdp)
+
+def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp):
 
     src  = ''
 
@@ -153,16 +163,27 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
 
     done = False
     while done == False:
+
+        if policy is None:
+            # Path is directly a list of states
+            action = pathNactions[1][num_steps]
+            state_idx_ext = pathNactions[0][num_steps]
+            state_idx_int = robot_mdp.MDP[2][state_idx_ext]
+            done = True if (num_steps >= (len(pathNactions[0]) - 1)) else False
+        else:
+            # Policy is action=f(state)
+            state_idx_ext = robot_mdp.MDP[3][state_idx_int]
+            action = policy[state_idx_ext]
+            state_idx_int, _, done, _ = robot_mdp._step(action)
+
         num_steps += 1
-        state_idx_ext = robot_mdp.MDP[3][state_idx_int]
-        action = policy[state_idx_ext]
-        state_idx_int, reward, done, info = robot_mdp._step(action)
 
         arms_pos, _, _, pick_pos = robot_mdp._ext2intState(state_idx_int)
         poss = []
         zs   = []
         z_plane = []
         joint_a = robot_mdp._ext2intAction(action)
+
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P
@@ -194,8 +215,6 @@ def generateTxtPlan(policy, initial_pos, pieces, robot, robot_mdp):
             src += ','.join([str(x) for x in ang]) 
             src += ',{}\n'.format(grip) 
 
-    #print('NUM_STEPS ', num_steps)
-    
     return arms_pos, num_steps, src
 
 
@@ -225,14 +244,14 @@ if __name__ == "__main__":
                'end'   : [  50, 200, 0],
               }
              ]
-    pieces = [ 
-              {'start' : [-250, 300, 0],  # Piece 1
-               'end'   : [ 250, 500, 0],
-              },
-              {'start' : [ 350, 200, 0],
-               'end'   : [-250, 500, 0],  # Piece 2
-              },                     
-          ]
+    #pieces = [ 
+    #          {'start' : [-250, 300, 0],  # Piece 1
+    #           'end'   : [ 250, 500, 0],
+    #          },
+    #          {'start' : [ 350, 200, 0],
+    #           'end'   : [-250, 500, 0],  # Piece 2
+    #          },                     
+    #      ]
 
     # Dump pieces info
     for i,piece in enumerate(pieces):
@@ -250,9 +269,17 @@ if __name__ == "__main__":
     print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
 
     # Solve MDP
-    solver = mdp_solver([robot_mdp.MDP[0], robot_mdp.MDP[1]], robot_mdp.single_nA)
-    policy = solver.solve()
+    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+    solver = mdp_solver(robot_mdp.MDP[0:2], init_state)
+    policy = solver.solve(0)
     print("\n\nAlgorithm execution {}\n\n".format(time.time() - algorithm_time))
+    if isinstance(policy, list):
+        for state in policy:
+            int_state = robot_mdp.MDP[2][state]
+            arms_pos, _, _,_ = robot_mdp._ext2intState(int_state)
+            print(arms_pos)
+        import sys
+        sys.exit()
 
     # Dump more info
     num_steps = 0

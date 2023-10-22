@@ -15,7 +15,7 @@ CGREEN  = '\033[92m'
 CORANGE = '\033[93m'
 CEND    = '\033[0m'
 
-def validate(policy, initial_pos, pieces, robot_mdp):
+def validatePolicy(policy, initial_pos, pieces, robot_mdp):
 
     pieces_status = [1 for _ in range(robot_mdp.K)]
     next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
@@ -30,8 +30,8 @@ def validate(policy, initial_pos, pieces, robot_mdp):
         if max_iterations <= 0:
             break
 
-    if done: print("Validating: " + CGREEN + "PASS" + CEND)
-    else   : print("Validating: " + CRED   + "FAIL" + CEND)
+    if done: print("  Validating: " + CGREEN + "PASS" + CEND)
+    else   : print("  Validating: " + CRED   + "FAIL" + CEND)
 
     return done
 
@@ -102,20 +102,18 @@ if __name__ == "__main__":
     # EEs initial position
     armsGridPos = [[6, 4, 0], [8, 0, 0]]
     
-    # Pieces
+    # Pieces (config)
     pieces_cfg = [
-        {'start': [-250, 300, 180],
-         'end'  : [ 450, 400, 180],
-         },
-        {'start': [ 250, 300, 180],
-         'end'  : [-450, 400, 180],
-         },
-        {'start': [ -50, 600, 180],
-         'end'  : [ 350, 200, 180],
-         },
-        {'start': [  50, 600, 180],
-         'end'  : [-350, 200, 180],
-         }
+        {'start': [ 250, 300, 180],'end'  : [-450, 400, 180],},
+        {'start': [-250, 300, 180],'end'  : [ 450, 400, 180],},
+        {'start': [  50, 600, 180],'end'  : [-350, 200, 180],},
+        {'start': [ -50, 600, 180],'end'  : [ 350, 200, 180],},
+        {'start': [-450, 200, 180],'end'  : [ 250, 500, 180],},
+        {'start': [ 450, 200, 180],'end'  : [-250, 500, 180],},
+        {'start': [-350, 600, 180],'end'  : [ 150, 300, 180],},
+        {'start': [ 350, 600, 180],'end'  : [-150, 300, 180],},
+        {'start': [ 250, 400, 180],'end'  : [ 450, 500, 180],},
+        {'start': [-250, 400, 180],'end'  : [ 350, 300, 180],}
     ]
 
     # Do basic sanity check on pieces and initial pos
@@ -134,61 +132,80 @@ if __name__ == "__main__":
         path = os.path.join(folder, "README.txt")
         report = open(path, "w")
 
+        #           m_layers ,       action_mode 
+        test_modes = [ [1    , Cfg.ACTIONS_ORTHO_2D],          # 0
+                       [1    , Cfg.ACTIONS_ORTHO_2D_DIAG_2D],  # 1
+                       [3    , Cfg.ACTIONS_ORTHO_3D_DIAG_2D],  # 2
+                       [3    , Cfg.ACTIONS_ORTHO_3D_DIAG_3D] ] # 3 
+
+        test_num_pieces = [2, 4, 6, 8, 9, 10]
+
         tc_num = 1
-        for num_layers in [1,2,3]:
-            for action_mode in [0,1,2]:
-                #for num_pieces in [2, 4]:
-                for num_pieces in [4]:
-                    for distance in [50]:
-        
+        distance = 50
+        for test_mode, (num_layers, action_mode) in enumerate(test_modes):
+            for num_pieces in test_num_pieces:
 
-                        tc_name = "d{}_pieces{}_amode{}_layers{}".format(distance, num_pieces, action_mode, num_layers)
-                        print(CORANGE + "\nTEST CASE {}: {}".format(tc_num, tc_name) + CEND)
+                tc_name = "mode{}_pieces{}".format(test_mode, num_pieces)
+                print(CORANGE + "\nTEST CASE {}: {}".format(tc_num, tc_name) + CEND)
         
-                        # User config
-                        globalCfg = Cfg(num_layers, action_mode, distance)
-                        
-                        # Robot
-                        robot = Robot_YuMi(globalCfg)
+                # User config
+                globalCfg = Cfg(num_layers, action_mode, distance)
+                
+                # Robot
+                robot = Robot_YuMi(globalCfg)
         
-                        # Generate MDP
-                        filename = "MDP_{}.bin".format(tc_name)
+                # Generate MDP
+                filename = "MDP_{}.bin".format(tc_name)
+                path = os.path.join(folder, filename)
+                pieces = pieces_cfg[0:num_pieces]
+                t0 = time.time()
+                robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
+                t1 = time.time()
+                time_offline = t1 - t0
+                print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
+
+                robot_mdp.update()
+        
+                for algorithm in [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]:
+                #for algorithm in [mdp_solver.ALG_BFS]:
+                    # Solve MDP
+                    f_reward, f_transition = robot_mdp.MDP[0:2]
+                    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+                    t1 = time.time()
+                    solver = mdp_solver([f_reward, f_transition], init_state)
+                    policy, pathNactions = solver.solve(algorithm)
+        
+                    if policy is not None:
+                        # Validate policy
+                        status = validatePolicy(policy, armsGridPos, pieces, robot_mdp)
+                    else:
+                        status = True
+
+                    t2 = time.time()
+
+                    # Generate RobotStudio Plan
+                    if status:
+                        print("  Generating RobotStudio plan")
+                        if policy is not None:
+                            _, steps, plan = pick_place.generateRobotStudioInputFromPolicy(policy, armsGridPos, pieces, robot, robot_mdp)
+                        else:
+                            #for p in path:
+                            #    print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
+                            _, steps, plan = pick_place.generateRobotStudioInputFromPath(pathNactions, armsGridPos, pieces, robot, robot_mdp)
+    
+                        filename = "RobotStudio_{}_alg{}.txt".format(tc_name, algorithm)
                         path = os.path.join(folder, filename)
-                        pieces = pieces_cfg[0:num_pieces]
-                        t0 = time.time()
-                        robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
-                        t1 = time.time()
-                        robot_mdp.update()
-        
-                        print(pieces)
-                        # Solve MDP
-                        f_reward, f_transition = robot_mdp.MDP[0:2]
-                        solver = mdp_solver([f_reward, f_transition], robot_mdp.single_nA)
-                        policy = solver.solve()
-        
-                        # Validate solution
-                        status = validate(policy, armsGridPos, pieces, robot_mdp)
-                        t2 = time.time()
-
-                        # Generate RobotStudio Plan
-                        if status:
-                            print("Generating RobotStudio plan")
-                            _, _, plan = pick_place.generateTxtPlan(policy, armsGridPos, pieces, robot, robot_mdp)
-    
-                            filename = "RobotStudio_{}.txt".format(tc_name)
-                            path = os.path.join(folder, filename)
-                            with open(path, "w") as f:
-                                f.write(plan)
+                        with open(path, "w") as f:
+                            f.write(plan)
             
-                        time_online  = t2- t1
-                        time_offline = t1- t0
-                        print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
-                        print("Time Online : {}h {}m {}s".format(int(time_online/3600),  int((time_online%3600)/60),  int(time_online%60)))
+                    time_online  = t2 - t1
+                    print("  Number of steps: {}".format(steps))
+                    print("  Time Online : {}h {}m {:0.3f}s".format(int(time_online/3600),  int((time_online%3600)/60),  time_online%60))
     
-                        # Fill report
-                        report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
+                    # Fill report
+                    report.write("TEST CASE {}: {} {}\n".format(tc_num, tc_name, ("PASS" if status else "FAIL")))
 
-                        tc_num += 1
+                tc_num += 1
 
 
         output = os.popen("\ngit rev-parse HEAD").read()

@@ -8,9 +8,10 @@ class GlobalConfig:
     # 
 
     # actions_mode
-    ACTIONS_BASIC          = 0 # Basic
-    ACTIONS_DIAGONAL_2D    = 1 # Basic + Diag 2D
-    ACTIONS_DIAGONAL_2D_3D = 2 # Basic + Diag 2D + Diag 3D
+    ACTIONS_ORTHO_2D         = 0 # Orthogonal 2D
+    ACTIONS_ORTHO_2D_DIAG_2D = 1 # Orthogonal 2D + Diagonal 2D
+    ACTIONS_ORTHO_3D_DIAG_2D = 2 # Orthogonal 3D + Diagonal 2D
+    ACTIONS_ORTHO_3D_DIAG_3D = 3 # Orthogonal 3D + Diagonal 3D
 
     # collision_min_distance
     # Range: any (unit: mm)
