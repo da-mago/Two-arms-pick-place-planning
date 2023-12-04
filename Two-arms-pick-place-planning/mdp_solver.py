@@ -26,25 +26,26 @@ class mdp_solver():
         self.MDP = MDP
         self.init_state = init_state
 
-        # Load BFS C implementation
-        if platform.system() == "Windows":
-            filename = "./c_bfs.dll"
-        else:
-            filename = "./c_bfs.so"
-
-        lib = ctypes.cdll.LoadLibrary(filename)
-
-        lib.BFS.restype = None
-        lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
-                             ctypes.c_size_t,  # n_states
-                             ctypes.c_size_t,  # n_actions
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
-                             ndpointer(ctypes.c_int16, flags="C_CONTIGUOUS"),  # rewards
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
-                             ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
-
-        self.C_BFS = lib.BFS
+# CMG comentado hasta generar la lib
+#        # Load BFS C implementation
+#        if platform.system() == "Windows":
+#            filename = "./c_bfs.dll"
+#        else:
+#            filename = "./c_bfs.so"
+#
+#        lib = ctypes.cdll.LoadLibrary(filename)
+#
+#        lib.BFS.restype = None
+#        lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
+#                             ctypes.c_size_t,  # n_states
+#                             ctypes.c_size_t,  # n_actions
+#                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
+#                             ndpointer(ctypes.c_int16, flags="C_CONTIGUOUS"),  # rewards
+#                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
+#                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
+#                             ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
+#
+#        self.C_BFS = lib.BFS
 
     def solve(self, algorithm=0):
 

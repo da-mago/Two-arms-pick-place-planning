@@ -1,5 +1,5 @@
-import os
 import numpy as np
+import os
 import time    # sleep
 #import imageio # mimsave
 from mdp_generator import mdp_generator
@@ -22,7 +22,7 @@ def showSolution(policy, initial_pos, GIF_filename=None):
     global num_steps
 
     pieces_status = [1 for _ in range(robot.K)]
-    init_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
+    init_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0],0)
     next_state = init_state
     robot_mdp.reset(next_state)
     images = []
@@ -49,7 +49,7 @@ def showSolution(policy, initial_pos, GIF_filename=None):
         # Show plan actions
         #print(i, robot_mdp._ext2intAction(action))
         #print(i, robot_mdp._ext2intState(next_state))
-        pos, status, pieces_status, pick_pos = robot_mdp._ext2intState(next_state)
+        pos, status, pieces_status, pick_pos, time_step = robot_mdp._ext2intState(next_state)
         joint_a = robot_mdp._ext2intAction(action)
         print(joint_a, pos, ',', status, ',', pieces_status, ',', pick_pos, i)
         for arm_idx in range(1,-1,-1):
@@ -90,7 +90,7 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     src += '#   Configuration                                                                                                                               Actions  -  Grid location  -  Location\n'
 
     pieces_status = [1 for _ in range(robot_mdp.K)]
-    next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
+    next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0], 0)
     robot_mdp.reset(next_state)
     done = False
     while done == False:
@@ -113,7 +113,7 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
 
         arms_action    = robot_mdp._ext2intAction(action)
         a_names        = [a_name[a] for a in arms_action]
-        arms_pos, _, _, _ = robot_mdp._ext2intState(next_state)
+        arms_pos, _, _, _, _ = robot_mdp._ext2intState(next_state)
         arms_config    = [list(robot.config[i,x,y,z]) for i,(x,y,z) in enumerate(arms_pos)]
         arms_loc       = [list(robot.location[x,y,z]) for x,y,z in arms_pos]
 
@@ -150,7 +150,7 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
 
     num_steps = 0
     pieces_status = [1 for _ in range(robot_mdp.K)]
-    state_idx_int = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
+    state_idx_int = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0], 0)
     robot_mdp.reset(state_idx_int)
 
     arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
@@ -178,7 +178,7 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
 
         num_steps += 1
 
-        arms_pos, _, _, pick_pos = robot_mdp._ext2intState(state_idx_int)
+        arms_pos, _, _, pick_pos, time_step = robot_mdp._ext2intState(state_idx_int)
         poss = []
         zs   = []
         z_plane = []
@@ -189,8 +189,12 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
                 tmp = (p_pos-1)//robot_mdp.P
                 if a_a == robot_mdp.ACTION_PICK:
                     pos = robot_mdp.piecesLocation['start'][tmp]
+                    pos = robot_mdp._updatePosAtTimeStep(pos, time_step)
+                    pos = robot_mdp._updatePosFromPiece(pos)
                 else:
                     pos = robot_mdp.piecesLocation['end'][tmp]
+                    pos = robot_mdp._updatePosAtTimeStep(pos, time_step)
+                    pos = robot_mdp._updatePosFromPiece(pos)
                 #print('5', x,y,p_pos)
                 tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
             else:
@@ -269,14 +273,14 @@ if __name__ == "__main__":
     print("\n\nMDP updated {}\n\n".format(time.time() - algorithm_time))
 
     # Solve MDP
-    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0],0)  ]
     solver = mdp_solver(robot_mdp.MDP[0:2], init_state)
     policy = solver.solve(0)
     print("\n\nAlgorithm execution {}\n\n".format(time.time() - algorithm_time))
     if isinstance(policy, list):
         for state in policy:
             int_state = robot_mdp.MDP[2][state]
-            arms_pos, _, _,_ = robot_mdp._ext2intState(int_state)
+            arms_pos, _, _, _, _ = robot_mdp._ext2intState(int_state)
             print(arms_pos)
         import sys
         sys.exit()

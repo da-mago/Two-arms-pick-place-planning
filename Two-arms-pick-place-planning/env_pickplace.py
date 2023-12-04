@@ -148,16 +148,22 @@ class env_pickplace:
                    #            |  |   |  |
                    #             ->    |  |
                    #                    ->
+        self.R2P_ratio = 5 # Robot to piece speed ratio
+        self.PS = (self.M*2 - 1)*self.R2P_ratio + 1 # Max number of piece steps in the conveyor belt (X axis, grid M steps + additional M steps before grid)
+        self.PS = (self.M - 1)*self.R2P_ratio + 1 # Max number of piece steps in the conveyor belt (X axis, grid M steps + additional M steps before grid)
+        self.PS = 1
+        self.R2P_ratio = 5
  
         # Initial state (internal representation) 
-        self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickStatus = self._getDefaultResetState()
+        self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickStatus, self.timeStep = self._getDefaultResetState()
 
         # Extra intermediate position
+        # DMG: support broken with conveyor belt project
         self.T_pos = [3, 3, 0] # arbitrary value (it should be a valid position for both arms)
  
         # State space size
         # Note: instead fo M*N*Z*P (4D), we extend Z axis only for K cells (where piece can be picked or dropeed). This is just to reduce memory resources. In the end we would end up filtering out those cells where you can not pick/drop a piece
-        self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2)
+        self.nS = (((self.M * self.N * self.Z) + (self.K * self.P))**2) * ((2 + self.T)**self.K) * ((self.K + 1)**2) * (self.PS)
 
         # Action space size: 
         self.ACTION_LEFT             = 0
@@ -234,12 +240,13 @@ class env_pickplace:
             self.piecesLocation['end'  ].append(xy_j)
 
             ## update robot grid
-            #print(xy_i, self._xy2idx(xy_i), p_cfg['start'])
-            #print(xy_j, self._xy2idx(xy_j), p_cfg['end'])
-            self.robot.updateLocation(xy_i, p_cfg['start'])
-            self.robot.updateLocation(xy_j, p_cfg['end'])
+# Removed by now for conveyor belt project
+#            self.robot.updateLocation(xy_i, p_cfg['start'])
+#            self.robot.updateLocation(xy_j, p_cfg['end'])
 
-        # Pieces current pos
+        print(self.piecesLocation)
+
+        # Pieces current pos (I think it is only used for plotting)
         self.piecesCurrPos = [ p_cfg for p_cfg in self.piecesLocation['start'] ]
 
 #        # Get robot (angles) configurations
@@ -255,13 +262,24 @@ class env_pickplace:
     # Helper functions
     #
     #############################################################
+    def _updatePosFromPiece(self, pos):
+        new_pos = pos[:]
+        new_pos[0] = new_pos[0]//self.R2P_ratio
+        return new_pos
+
+    def _updatePosAtTimeStep(self, pos, time_step):
+        new_pos = pos[:]
+        if new_pos[0] < (((self.M - 1)*self.R2P_ratio) + 1):
+            new_pos[0] += time_step
+        return new_pos
+
     def _getIntState(self):
-        return [self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos]
+        return [self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep]
 
     def _getExtState(self):
-        return self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+        return self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep)
 
-    def _derivePosFromState(self, armStatus, piecesStatus, pickPos):
+    def _derivePosFromState(self, armStatus, piecesStatus, pickPos, timeStep):
         ''' XY arm pos and pickPos info are combined in the MDP: (M*N + K*P), so
             when P>0, XY info is not encoded and need to be derived from the other
             MDP state vars '''
@@ -278,19 +296,22 @@ class env_pickplace:
         pStatus = piecesStatus[piece]
         if pStatus == 0:   # end
             pos = self.piecesLocation['end'][piece]
+            pos = self._updatePosFromPiece(pos)
         elif pStatus == 1: # init
             pos = self.piecesLocation['start'][piece]
+            pos = self._updatePosAtTimeStep(pos, timeStep)
+            pos = self._updatePosFromPiece(pos)
         elif pStatus == 2: # intermediate 1
             pos = self.T_pos
         else:              # unexpected
-        #    assert False, 'Really? unknonw piece Status'
+        #    assert False, 'Really? unknown piece Status'
             pos = [-1,-1,-1]
 
         return pos
 
-    def _int2extState(self, armsPos, armsStatus, piecesStatus, pickPos):
+    def _int2extState(self, armsPos, armsStatus, piecesStatus, pickPos, timeStep):
         ''' convert internal state representation to a single scalar '''
-        N,M,Z,K,P,T = self.N, self.M, self.Z, self.K, self.P, self.T
+        N,M,Z,K,P,T,PS = self.N, self.M, self.Z, self.K, self.P, self.T, self.PS
 
         tmp = 0
         for status in piecesStatus:
@@ -304,6 +325,8 @@ class env_pickplace:
             tmp += status
         state += tmp * ((2 + T)**K)
 
+        state += timeStep * ((2 + T)**K) * ((K+1)**2)
+
         tmp = 0
         for pos,p in zip(armsPos, pickPos):
             tmp *= (N*M*Z + K*P)
@@ -311,13 +334,13 @@ class env_pickplace:
                 tmp += self._xy2idx(pos)
             else:
                 tmp += N*M*Z-1 + p
-        state += tmp * ((2 + T)**K) * ((K+1)**2)
+        state += tmp * PS * ((2 + T)**K) * ((K+1)**2)
 
         return state
 
     def _ext2intState(self, state, mode = MODE_ONLINE):
         ''' convert external state (scalar) to internal state representation '''
-        N,M,Z,K,P,T = self.N, self.M, self.Z, self.K, self.P, self.T
+        N,M,Z,K,P,T,PS = self.N, self.M, self.Z, self.K, self.P, self.T, self.PS
 
         pieces_status = []
         for _ in range(K):
@@ -331,6 +354,9 @@ class env_pickplace:
             arms_status.insert(0, tmp)
             state = (state - tmp) // (K+1)
 
+        time_step = state % PS
+        state = (state - time_step) // PS
+
         arms_pos = [] 
         pick_pos = []
         for arm_st in reversed(arms_status):
@@ -342,12 +368,12 @@ class env_pickplace:
                 if mode == env_pickplace.MODE_OFFLINE:
                     arms_pos.insert(0, self.robot.unknown_pos)
                 else:
-                    arms_pos.insert(0, self._derivePosFromState(arm_st, pieces_status, p_pos) )
+                    arms_pos.insert(0, self._derivePosFromState(arm_st, pieces_status, p_pos, time_step) )
             else:
                 pick_pos.insert(0, 0)
                 arms_pos.insert(0, self._idx2xy(idx))
 
-        return [arms_pos, arms_status, pieces_status, pick_pos]
+        return [arms_pos, arms_status, pieces_status, pick_pos, time_step]
 
     def _ActionReorder(self):
         # There are an amount of A*A combined actions. 
@@ -378,15 +404,23 @@ class env_pickplace:
 
     def _nearest2DTo(self, item, item_list):
         ''' Find the most similar entry in the item_list (ignore Z) '''
-        dist_min = 100000
+#        dist_min = 100000
+#
+#        for x in range(self.M):
+#            for y in range(self.N):
+#                dist = sum( (a - b)**2 for a, b in zip(item[0:2], item_list[x,y,0][0:2]))
+#                if dist <= dist_min:
+#                    dist_min = dist
+#                    pos = [x,y,0]
+#        return pos
 
-        for x in range(self.M):
-            for y in range(self.N):
-                dist = sum( (a - b)**2 for a, b in zip(item[0:2], item_list[x,y,0][0:2]))
-                if dist <= dist_min:
-                    dist_min = dist
-                    pos = [x,y,0]
-        return pos
+        # Asumme perfect alignmet to a piece subgrid ste
+        min_x = -450
+        min_y = +200
+        piece_x_step = 100//self.R2P_ratio
+        piece_y_step = 100
+        return [(item[0]-min_x)//piece_x_step, (item[1]-min_y)//piece_y_step, 0]
+
 
     def _nearestTo(self, item, item_list):
         ''' Find the most similar entry in the item_list '''
@@ -486,7 +520,7 @@ class env_pickplace:
         return res
 
 
-    def _isPickUpActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos):
+    def _isPickUpActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos, time_step):
         ''' Check pick up action coherence in the current state for a specific arm '''
 
         piece = 0
@@ -502,7 +536,12 @@ class env_pickplace:
                     valid = False
             else:
                 for i,(piece_pos, piece_status) in enumerate(zip(self.piecesLocation['start'], pieces_status)):
-                    if (piece_status == 1 and arm_grid_pos == piece_pos) or \
+                    current_piece_pos = self._updatePosAtTimeStep(piece_pos, time_step)
+                    # Piece can not be picked up between grid cells
+                    if ((current_piece_pos[0] + 0) % self.R2P_ratio):
+                        continue
+                    current_piece_pos = self._updatePosFromPiece(current_piece_pos)
+                    if (piece_status == 1 and arm_grid_pos == current_piece_pos) or \
                        (piece_status == 2 and arm_grid_pos == self.T_pos):
                        piece = i
                        valid = True
@@ -510,7 +549,7 @@ class env_pickplace:
 
         return valid, piece
 
-    def _isDropOffActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos):
+    def _isDropOffActionValid(self, arm_grid_pos, arm_status, pieces_status, pick_pos, time_step):
         ''' Check drop off action coherence in the current state for a specific arm '''
 
         piece = 0
@@ -526,7 +565,9 @@ class env_pickplace:
                 piece_status = pieces_status[piece]
                 valid = True
             else:
-                if (arm_grid_pos == self.piecesLocation['end'][piece] ):
+                piece_pos = self.piecesLocation['end'][piece]
+                piece_pos = self._updatePosFromPiece(piece_pos)
+                if (arm_grid_pos == piece_pos):
                     piece_status = 0
                     valid = True
                 elif (arm_grid_pos == self.T_pos) and self.T > 0:
@@ -540,20 +581,21 @@ class env_pickplace:
         return ((np.sum(self.piecesStatus) == 0) and (np.sum(self.armsStatus) == 0) and (np.sum(self.pickPos) == 0))
 
     def _getDefaultResetState(self):
-        armsGridPos = [[0,0,0], [6,4,0]]  # init 2D grid pos
-        armsStatus  = [0, 0]          # init status: carrying no piece
-        piecesStatus= [1 for _ in range(self.K)] # init status: No piece has been picked up yet
-        pickPos     = [0,0]
+        armsGridPos  = [[0,0,0], [6,4,0]]  # init 2D grid pos
+        armsStatus   = [0, 0]          # init status: carrying no piece
+        piecesStatus = [1 for _ in range(self.K)] # init status: No piece has been picked up yet
+        pickPos      = [0,0]
+        timeStep     = 0
 
-        return [armsGridPos, armsStatus, piecesStatus, pickPos]
+        return [armsGridPos, armsStatus, piecesStatus, pickPos, timeStep]
 
     def reset(self, state=None):
         ''' Bring environment to the default state '''
 
         if state == None:
-            self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos = self._getDefaultResetState()
+            self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep = self._getDefaultResetState()
         else:
-            self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos = self._ext2intState(state)
+            self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep = self._ext2intState(state)
 
         self.piecesCurrPos = [ p_cfg for p_cfg in self.piecesLocation['start'] ]
 
@@ -631,7 +673,7 @@ class env_pickplace:
              mode: 0 - pieces known (online computation), 1 - pieces unkown (offline computation)
         '''
 
-        arms_pos, arms_status, pieces_status, pick_pos = self._ext2intState(state, mode=mode)
+        arms_pos, arms_status, pieces_status, pick_pos, time_step = self._ext2intState(state, mode=mode)
 
         valid_state = True
 
@@ -673,7 +715,7 @@ class env_pickplace:
         if self._isGoalMet():
             # Do not process the action. By design, any action results in the
             # same goal state with reward 0.
-            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+            state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep)
             reward = 0
             done   = True
             info   = ''
@@ -692,7 +734,7 @@ class env_pickplace:
                       (self.pickPos[i] == 0 and self.armsGridPos[i] != self.T_pos): # actually, intermediate position can be processed
                        # Add special mark in the reward function
                        # This state-action pair will be resolved when pieces position is known (later with update() function)
-                       state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+                       state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep)
                        reward = -30
                        done   = False
                        info   = ''
@@ -797,7 +839,7 @@ class env_pickplace:
 
                 # pick up
                 if a == self.ACTION_PICK:
-                    valid_state, piece_idx = self._isPickUpActionValid(pos, arm_status, self.piecesStatus, pick_pos)
+                    valid_state, piece_idx = self._isPickUpActionValid(pos, arm_status, self.piecesStatus, pick_pos, self.timeStep)
                     if valid_state:
                         if reduced_pick_pos >= self.P:
                             next_pick_pos[i] = 0
@@ -808,15 +850,22 @@ class env_pickplace:
                             next_pick_pos[i] = reduced_pick_pos + 1 + piece_idx*self.P
 
 ### pos should be unchanged
+                        old_pos = pos[:]
                         if pick_pos > 0:
-                            if self.piecesStatus[piece_idx] == 1: pos = self.piecesLocation['start'][piece_idx]
-                            else:                                 pos = self.T_pos
+                            if self.piecesStatus[piece_idx] == 1: 
+                                pos = self.piecesLocation['start'][piece_idx]
+                                pos = self._updatePosAtTimeStep(pos, self.timeStep)
+                                pos = self._updatePosFromPiece(pos)
+                            else:
+                                pos = self.T_pos
+                            if old_pos != pos:
+                                print("UIUI con este pos")
                     else:
                         break # Nothing to pick up
 
                 # drop off
                 elif a == self.ACTION_DROP:
-                    valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, self.piecesStatus, pick_pos)
+                    valid_state, piece_idx, piece_status = self._isDropOffActionValid(pos, arm_status, self.piecesStatus, pick_pos, self.timeStep)
                     if valid_state:
                         if reduced_pick_pos >= self.P:
                             next_pick_pos[i] = 0
@@ -831,9 +880,15 @@ class env_pickplace:
                                 next_pieces_status[piece_idx] = piece_status
 
 ###                        # Fix location
+                        old_pos = pos[:]
                         if pick_pos > 0:
-                            if piece_status == 0: pos = self.piecesLocation['end'][piece_idx]
-                            else:                 pos = self.T_pos
+                            if piece_status == 0:
+                                pos = self.piecesLocation['end'][piece_idx]
+                                pos = self._updatePosFromPiece(pos)
+                            else:
+                                pos = self.T_pos
+                            if old_pos != pos:
+                                print("UIUI con este END pos", old_pos, pos)
                     else:
                         break # Nothing to drop off
             # stay
@@ -857,6 +912,14 @@ class env_pickplace:
 
         if valid_state:
             valid_state = self._isPiecesStatusValid(next_arms_status, next_pieces_status, next_pick_pos)
+
+        ## Increase time_step (limited to PS)
+        ## DMG esto hay que pensarlo bien
+        #if self.timeStep < (self.PS - 1):
+        #   self.timeStep += 1
+        #else:
+        #    valid_state = False
+        self.timeStep = 0
 
         if valid_state:
             if pick_place_mark:
@@ -886,8 +949,9 @@ class env_pickplace:
             # The same reward (punishment) for any unwanted action
             reward = -20
 
+
         # Build response
-        observation = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos)
+        observation = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep)
 
 
         return observation, reward, done, info

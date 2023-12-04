@@ -18,7 +18,8 @@ CEND    = '\033[0m'
 def validatePolicy(policy, initial_pos, pieces, robot_mdp):
 
     pieces_status = [1 for _ in range(robot_mdp.K)]
-    next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
+    next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0], 0)
+    #next_state = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0])
     robot_mdp.reset(next_state)
 
     done = False
@@ -56,7 +57,9 @@ def DoSanityCheck(pieces_cfg, armsGridPos):
         reach = [[0,0], [0,0]]
         for j in range(2): # each arm
             for k,k_str in enumerate(['start', 'end']) :
-                x,y,z = env.piecesLocation[k_str][i]
+                pos = env.piecesLocation[k_str][i]
+                x,y,z = env._updatePosFromPiece(pos)
+#                x,y,z = env.piecesLocation[k_str][i][:]
                 reach[j][k] = robot.reachable[j,x,y,z]
 
         # check if the piece can be processed
@@ -142,6 +145,11 @@ if __name__ == "__main__":
 
         test_num_pieces = [2, 4, 6, 8, 9, 10]
 
+        # Trick to test a single use-case
+        #pieces_cfg = [ {'start': [-350, 300, 180],'end'  : [-150, 400, 180]} ]
+        test_num_pieces = [1]
+        test_modes = [ [1    , Cfg.ACTIONS_ORTHO_2D] ]
+
         tc_num = 1
         distance = 50
         for test_mode, (num_layers, action_mode) in enumerate(test_modes):
@@ -168,11 +176,15 @@ if __name__ == "__main__":
 
                 robot_mdp.update()
         
-                for algorithm in [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]:
+                algorithms = [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]
+                # DMG trick to apply only value iteration
+                algorithms = [mdp_solver.ALG_VALUE_ITERATION]
+                for algorithm in algorithms:
                 #for algorithm in [mdp_solver.ALG_BFS]:
                     # Solve MDP
                     f_reward, f_transition = robot_mdp.MDP[0:2]
-                    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
+                    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0], 0)  ]
+                    #init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
                     t1 = time.time()
                     solver = mdp_solver([f_reward, f_transition], init_state)
                     policy, pathNactions = solver.solve(algorithm)
