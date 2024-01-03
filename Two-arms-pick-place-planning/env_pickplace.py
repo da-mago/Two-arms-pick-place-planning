@@ -150,9 +150,8 @@ class env_pickplace:
                    #                    ->
         self.R2P_ratio = 5 # Robot to piece speed ratio
         self.PS = (self.M*2 - 1)*self.R2P_ratio + 1 # Max number of piece steps in the conveyor belt (X axis, grid M steps + additional M steps before grid)
-        self.PS = (self.M - 1)*self.R2P_ratio + 1 # Max number of piece steps in the conveyor belt (X axis, grid M steps + additional M steps before grid)
-        self.PS = 1
-        self.R2P_ratio = 5
+        #self.PS = (self.M - 1)*self.R2P_ratio + 1 # Max number of piece steps in the conveyor belt (X axis, grid M steps + additional M steps before grid)
+        #self.PS = 50
  
         # Initial state (internal representation) 
         self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickStatus, self.timeStep = self._getDefaultResetState()
@@ -262,16 +261,32 @@ class env_pickplace:
     # Helper functions
     #
     #############################################################
-    def _updatePosFromPiece(self, pos):
-        new_pos = pos[:]
-        new_pos[0] = new_pos[0]//self.R2P_ratio
-        return new_pos
+##  def _updatePosFromPiece(self, pos):
+##      new_pos = pos[:]
+##      new_pos[0] = new_pos[0]//self.R2P_ratio
+##      return new_pos
 
-    def _updatePosAtTimeStep(self, pos, time_step):
-        new_pos = pos[:]
-        if new_pos[0] < (((self.M - 1)*self.R2P_ratio) + 1):
-            new_pos[0] += time_step
-        return new_pos
+##  def _updatePosAtTimeStep(self, pos, time_step):
+##      new_pos = pos[:]
+##      new_pos[0] += time_step
+##      if new_pos[0] > (((self.M - 1)*self.R2P_ratio) + 1):
+##          new_pos[0] = (((self.M - 1)*self.R2P_ratio) + 1)
+##      return new_pos
+
+    def _piece2robotPos(self, ref_pos, time_step, pick_pos):
+        x,y,z = ref_pos
+        # Piece location after several time_steps
+        x += time_step
+        if time_step:
+            # We only want to substract if time_step is used
+            x -= pick_pos
+        # Limit x pos
+        x = min(x, ((self.M - 1)*self.R2P_ratio) + 1)
+        # Convert to robot pos
+        x = x/self.R2P_ratio
+
+        #          robot_pos     exact
+        return [int(x), y, z], x==int(x)
 
     def _getIntState(self):
         return [self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep]
@@ -284,6 +299,7 @@ class env_pickplace:
             when P>0, XY info is not encoded and need to be derived from the other
             MDP state vars '''
 
+        ts_pickPos = (pickPos - 1) % self.P # pick_pos of piece
         if armStatus > 0:
             piece = armStatus - 1
         elif pickPos > 0:
@@ -291,21 +307,21 @@ class env_pickplace:
         else:
         #    assert False, 'Really? armsStatus is 0'
             # Impossible to get the info
-            return [-1,-1,-1]
+#            return [-1,-1,-1]
+            return robot.unknown_pos
 
         pStatus = piecesStatus[piece]
         if pStatus == 0:   # end
-            pos = self.piecesLocation['end'][piece]
-            pos = self._updatePosFromPiece(pos)
+            pos, _ = self._piece2robotPos(self.piecesLocation['end'][piece], 0, ts_pickPos)
         elif pStatus == 1: # init
-            pos = self.piecesLocation['start'][piece]
-            pos = self._updatePosAtTimeStep(pos, timeStep)
-            pos = self._updatePosFromPiece(pos)
+            pos, _ = self._piece2robotPos(self.piecesLocation['start'][piece], timeStep, ts_pickPos)
         elif pStatus == 2: # intermediate 1
             pos = self.T_pos
         else:              # unexpected
         #    assert False, 'Really? unknown piece Status'
-            pos = [-1,-1,-1]
+            pos = self.robot.unknown_pos
+            raise Exception('Invalid piece status value: {}!'.format(pStatus))
+            print("WTF!! pieceStatus", pstatus, piece, armStatus, pickPos, timeStep)
 
         return pos
 
@@ -526,8 +542,11 @@ class env_pickplace:
         piece = 0
         valid = False
 
+#        print("IS")
+#        print(arm_status, arm_grid_pos)
         if arm_status == 0 and arm_grid_pos[2] == 0: # arm empty in Z=0 grid
             if pick_pos > 0:
+#                print("AA")
                 # arm_pos unknown when pick_pos>0
                 piece = (pick_pos - 1) // self.P
                 if pieces_status[piece] > 0:
@@ -536,12 +555,20 @@ class env_pickplace:
                     valid = False
             else:
                 for i,(piece_pos, piece_status) in enumerate(zip(self.piecesLocation['start'], pieces_status)):
-                    current_piece_pos = self._updatePosAtTimeStep(piece_pos, time_step)
-                    # Piece can not be picked up between grid cells
-                    if ((current_piece_pos[0] + 0) % self.R2P_ratio):
+                    piece_grid_pos, in_grid = self._piece2robotPos(self.piecesLocation['start'][piece], time_step, 0)
+
+                    if not in_grid:
                         continue
-                    current_piece_pos = self._updatePosFromPiece(current_piece_pos)
-                    if (piece_status == 1 and arm_grid_pos == current_piece_pos) or \
+##                    current_piece_pos = self._updatePosAtTimeStep(piece_pos, time_step)
+##
+###                    print(current_piece_pos)
+##                    # Piece can not be picked up between grid cells
+##                    if ((current_piece_pos[0] + 0) % self.R2P_ratio):
+##                        continue
+###                    print(current_piece_pos)
+##                    current_piece_pos = self._updatePosFromPiece(current_piece_pos)
+###                    print(current_piece_pos)
+                    if (piece_status == 1 and arm_grid_pos == piece_grid_pos) or \
                        (piece_status == 2 and arm_grid_pos == self.T_pos):
                        piece = i
                        valid = True
@@ -565,9 +592,11 @@ class env_pickplace:
                 piece_status = pieces_status[piece]
                 valid = True
             else:
-                piece_pos = self.piecesLocation['end'][piece]
-                piece_pos = self._updatePosFromPiece(piece_pos)
-                if (arm_grid_pos == piece_pos):
+                piece_grid_pos, _ = self._piece2robotPos(self.piecesLocation['end'][piece], 0, 0)
+
+##              piece_pos = self.piecesLocation['end'][piece]
+##              piece_pos = self._updatePosFromPiece(piece_pos)
+                if (arm_grid_pos == piece_grid_pos):
                     piece_status = 0
                     valid = True
                 elif (arm_grid_pos == self.T_pos) and self.T > 0:
@@ -674,6 +703,8 @@ class env_pickplace:
         '''
 
         arms_pos, arms_status, pieces_status, pick_pos, time_step = self._ext2intState(state, mode=mode)
+        if arms_pos[0] == [-4, 1, 0]:
+            print(arms_pos)
 
         valid_state = True
 
@@ -853,9 +884,11 @@ class env_pickplace:
                         old_pos = pos[:]
                         if pick_pos > 0:
                             if self.piecesStatus[piece_idx] == 1: 
-                                pos = self.piecesLocation['start'][piece_idx]
-                                pos = self._updatePosAtTimeStep(pos, self.timeStep)
-                                pos = self._updatePosFromPiece(pos)
+                                ts_pickpos = (pick_pos - 1) % self.P # pick_pos of piece
+                                pos, _ = self._piece2robotPos(self.piecesLocation['start'][piece_idx], self.timeStep, ts_pickpos)
+##                              pos = self.piecesLocation['start'][piece_idx]
+##                              pos = self._updatePosAtTimeStep(pos, self.timeStep - ts_pickpos)
+##                              pos = self._updatePosFromPiece(pos)
                             else:
                                 pos = self.T_pos
                             if old_pos != pos:
@@ -883,12 +916,14 @@ class env_pickplace:
                         old_pos = pos[:]
                         if pick_pos > 0:
                             if piece_status == 0:
-                                pos = self.piecesLocation['end'][piece_idx]
-                                pos = self._updatePosFromPiece(pos)
+                                pos, _ = self._piece2robotPos(self.piecesLocation['end'][piece_idx], 0, 0)
+##                              pos = self.piecesLocation['end'][piece_idx]
+##                              pos = self._updatePosFromPiece(pos)
                             else:
                                 pos = self.T_pos
                             if old_pos != pos:
-                                print("UIUI con este END pos", old_pos, pos)
+                                pass
+                                #print("UIUI con este END pos", old_pos, pos)
                     else:
                         break # Nothing to drop off
             # stay
@@ -915,11 +950,11 @@ class env_pickplace:
 
         ## Increase time_step (limited to PS)
         ## DMG esto hay que pensarlo bien
-        #if self.timeStep < (self.PS - 1):
-        #   self.timeStep += 1
-        #else:
-        #    valid_state = False
-        self.timeStep = 0
+        if self.timeStep < (self.PS - 1):
+           self.timeStep += 1
+#        else:
+#            valid_state = False
+#        self.timeStep = 0
 
         if valid_state:
             if pick_place_mark:

@@ -18,7 +18,7 @@ class Robot_YuMi():
         self.min_distance = globalCfg.collision_min_distance # Distance considered collision (cm)
         self.z_layers     = globalCfg.grid_num_layers
         self.z            = 180   # Default z value for robot EEs
-        self.unknown_pos  = [-1,-1,-1]
+        self.unknown_pos  = [-100,-100,-100]
 
         self.M, self.N, self.Z, self.distance, self.config, self.reachable, self.location = self._loadCSV('db_collision.csv', 'db_joint_cfg.csv')    
 
@@ -162,6 +162,9 @@ class Robot_YuMi():
         for pos, reach in zip(armsGridPos, self.reachable):
             if pos != self.unknown_pos:
                 x,y,z = pos
+                if x < 0:
+                    # pos derived from piece pos (which may be outside boundaries)
+                    return False
                 if not reach[x,y,z]:
                     return False
             else:

@@ -186,15 +186,18 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
 
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
-                tmp = (p_pos-1)//robot_mdp.P
+                tmp = (p_pos-1)//robot_mdp.P # piece
+                ts_pickpos = (p_pos-1)%robot_mdp.P # pick_pos of piece
                 if a_a == robot_mdp.ACTION_PICK:
-                    pos = robot_mdp.piecesLocation['start'][tmp]
-                    pos = robot_mdp._updatePosAtTimeStep(pos, time_step)
-                    pos = robot_mdp._updatePosFromPiece(pos)
+##                  pos = robot_mdp.piecesLocation['start'][tmp]
+##                  pos = robot_mdp._updatePosAtTimeStep(pos, time_step - ts_pickpos)
+##                  pos = robot_mdp._updatePosFromPiece(pos)
+                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['start'][tmp], time_step, ts_pickpos)
                 else:
-                    pos = robot_mdp.piecesLocation['end'][tmp]
-                    pos = robot_mdp._updatePosAtTimeStep(pos, time_step)
-                    pos = robot_mdp._updatePosFromPiece(pos)
+##                  pos = robot_mdp.piecesLocation['end'][tmp]
+##                  pos = robot_mdp._updatePosAtTimeStep(pos, time_step - ts_pickpos)
+##                  pos = robot_mdp._updatePosFromPiece(pos)
+                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], time_step, ts_pickpos)
                 #print('5', x,y,p_pos)
                 tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
             else:

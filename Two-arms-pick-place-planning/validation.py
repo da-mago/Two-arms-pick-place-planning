@@ -26,6 +26,7 @@ def validatePolicy(policy, initial_pos, pieces, robot_mdp):
     max_iterations = 100
     while done == False:
         action = policy[ robot_mdp.MDP[3][next_state] ]
+        print(robot_mdp._ext2intState(next_state))
         next_state, reward, done, info = robot_mdp._step(action)
         max_iterations -= 1
         if max_iterations <= 0:
@@ -57,8 +58,9 @@ def DoSanityCheck(pieces_cfg, armsGridPos):
         reach = [[0,0], [0,0]]
         for j in range(2): # each arm
             for k,k_str in enumerate(['start', 'end']) :
-                pos = env.piecesLocation[k_str][i]
-                x,y,z = env._updatePosFromPiece(pos)
+##                pos = env.piecesLocation[k_str][i]
+##                x,y,z = env._updatePosFromPiece(pos)
+                (x,y,z), _ = env._piece2robotPos(env.piecesLocation[k_str][i], 0, 0)
 #                x,y,z = env.piecesLocation[k_str][i][:]
                 reach[j][k] = robot.reachable[j,x,y,z]
 
@@ -103,6 +105,7 @@ def DoSanityCheck(pieces_cfg, armsGridPos):
 if __name__ == "__main__":
 
     # EEs initial position
+    armsGridPos = [[1, 4, 0], [8, 0, 0]]
     armsGridPos = [[6, 4, 0], [8, 0, 0]]
     
     # Pieces (config)
@@ -146,8 +149,11 @@ if __name__ == "__main__":
         test_num_pieces = [2, 4, 6, 8, 9, 10]
 
         # Trick to test a single use-case
-        #pieces_cfg = [ {'start': [-350, 300, 180],'end'  : [-150, 400, 180]} ]
-        test_num_pieces = [1]
+        pieces_cfg = [ {'start': [-750, 300, 180],'end'  : [-150, 400, 180]}, 
+                       {'start': [-950, 400, 180],'end'  : [ 150, 500, 180]},
+                       {'start': [-450, 500, 180],'end'  : [-350, 200, 180]},
+                       {'start': [-650, 500, 180],'end'  : [ 350, 200, 180]} ]
+        test_num_pieces = [2]
         test_modes = [ [1    , Cfg.ACTIONS_ORTHO_2D] ]
 
         tc_num = 1
@@ -174,11 +180,11 @@ if __name__ == "__main__":
                 time_offline = t1 - t0
                 print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
 
-                robot_mdp.update()
+#                robot_mdp.update()
         
                 algorithms = [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]
                 # DMG trick to apply only value iteration
-                algorithms = [mdp_solver.ALG_VALUE_ITERATION]
+                algorithms = [mdp_solver.ALG_BFS]
                 for algorithm in algorithms:
                 #for algorithm in [mdp_solver.ALG_BFS]:
                     # Solve MDP
