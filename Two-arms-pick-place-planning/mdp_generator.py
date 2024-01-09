@@ -177,15 +177,10 @@ class mdp_generator(env_pickplace):
                                     if reduced_pp_1 > 0: pick_pos_1 = reduced_pp_1 + (i * self.P) # Range 0..K*o
                                     else:                pick_pos_1 = 0
                                     if pieces_status[i] == 1:
-##                                      pos = pos_ini
-##                                      pos = self._updatePosAtTimeStep(pos, time_step - reduced_pp_1)
-##                                      pos = self._updatePosFromPiece(pos)
                                         pos, _ = self._piece2robotPos(pos_ini, time_step, reduced_pp_1)
                                         #DMG si el segundo argumento devuelto es False, we can skip it (continue)
                                         status = 0
                                     elif pieces_status[i] == 0:
-##                                      pos = pos_end
-##                                      pos = self._updatePosFromPiece(pos)
                                         pos, _ = self._piece2robotPos(pos_end, 0, 0)
                                         status = i+1
                                     else:
@@ -212,10 +207,7 @@ class mdp_generator(env_pickplace):
 
                                     if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step)
                                     else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step)
-                                    #if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
-                                    #else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
 
-                                    if arm == 1 and status == 0 and time_step == 25 and pos_2 == [0,0,0] and status_2 == 0 and pieces_status == [0,1]: print(state, arm, pos_2, pos, [pick_pos_1, pick_pos_2])
                                     # Check valid state
                                     if state not in states_idx:
                                         continue
@@ -229,8 +221,6 @@ class mdp_generator(env_pickplace):
                                     # Taking action
                                     a = self.ACTION_PICK if status == 0 else self.ACTION_DROP # Fix-arm action
 
-#                                    if arm == 0: print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, ps )
-#                                    else:        print([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step, ps )
                                     for a_2 in range(self.single_nA): # Other_arm action
 
                                         if arm == 0: joint_a = [a, a_2]
@@ -238,31 +228,20 @@ class mdp_generator(env_pickplace):
 
                                         action = self._int2extAction(joint_a)
 
+## debug info
                                         if self.MDP[1][idx][action] != -30:
-#                                            if arm == 0: print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, joint_a, self.MDP[1][idx][action])
-#                                            else:        print([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step, joint_a, self.MDP[1][idx][action])
-                                ##          if status == 0 and status_2 == 0 and pieces_status == [0,0]:
-                                ##              print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, joint_a)
-                                            # Not marked to be updated
-#                                            print(state, joint_a)
                                             #raise Exception("HOLA")
                                             cnt2 += 1
                                             continue
                                             
 
                                         cnt += 1
-                                        # Using _step() implementation (slower then code here after continue)
                                         self.reset(state)
                                         next_state, reward, _, _ = self._step(action)
-                                        #print(state, action)
-                                        #if self._isStateValid(next_state):
                                         if next_state in states_idx:
                                             self.MDP[0][idx][action] = states_idx[next_state]
                                             self.MDP[1][idx][action] = reward
-#                                            print(state, joint_a)
                                             counter += 1
-##                                        # Done
-##                                        continue
 
         print("CNT      :", cnt)
         print("CNT2     :", cnt2)

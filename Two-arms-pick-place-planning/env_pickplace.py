@@ -244,7 +244,7 @@ class env_pickplace:
             self.piecesLocation['end'  ].append(xy_j)
 
             ## update robot grid
-# Removed by now for conveyor belt project
+# DMG Removed by now for conveyor belt project
 #            self.robot.updateLocation(xy_i, p_cfg['start'])
 #            self.robot.updateLocation(xy_j, p_cfg['end'])
 
@@ -253,9 +253,6 @@ class env_pickplace:
         # Pieces current pos (I think it is only used for plotting)
         self.piecesCurrPos = [ p_cfg for p_cfg in self.piecesLocation['start'] ]
 
-#        # Get robot (angles) configurations
-#        self.gridAng = self.robot.getConfig()
-#
         # Open AI gym-style stuff)
         self.action_space      = self.ActionSpace(self.nA)
         self.observation_space = self.ObservationSpace(self.nS)
@@ -266,17 +263,6 @@ class env_pickplace:
     # Helper functions
     #
     #############################################################
-##  def _updatePosFromPiece(self, pos):
-##      new_pos = pos[:]
-##      new_pos[0] = new_pos[0]//self.R2P_ratio
-##      return new_pos
-
-##  def _updatePosAtTimeStep(self, pos, time_step):
-##      new_pos = pos[:]
-##      new_pos[0] += time_step
-##      if new_pos[0] > (((self.M - 1)*self.R2P_ratio) + 1):
-##          new_pos[0] = (((self.M - 1)*self.R2P_ratio) + 1)
-##      return new_pos
 
     def _piece2robotPos(self, ref_pos, time_step, pick_pos):
         x,y,z = ref_pos
@@ -495,12 +481,6 @@ class env_pickplace:
         # Do not compare floats. Find the most similar cell pos
         return self._nearestTo(pos, self.robot.location)
 
-#    def _logic2ang(self, arm_idx, pos):
-#        ''' convert logical grid cell pos to robot angles configuration
-#            [0,1] -> [2.61814353, 2.11034636]
-#        '''
-#        return self.gridAng[arm_idx][ self._xy2idx(pos) ]
-#
     def _isArmsGridPosValid(self, pos):
         ''' Check if pos is inside the grid boundaries '''
         x,y,z = pos
@@ -573,15 +553,7 @@ class env_pickplace:
 
                     if not in_grid:
                         continue
-##                    current_piece_pos = self._updatePosAtTimeStep(piece_pos, time_step)
-##
-###                    print(current_piece_pos)
-##                    # Piece can not be picked up between grid cells
-##                    if ((current_piece_pos[0] + 0) % self.R2P_ratio):
-##                        continue
-###                    print(current_piece_pos)
-##                    current_piece_pos = self._updatePosFromPiece(current_piece_pos)
-###                    print(current_piece_pos)
+
                     if (piece_status == 1 and arm_grid_pos == piece_grid_pos) or \
                        (piece_status == 2 and arm_grid_pos == self.T_pos):
                        piece = i
@@ -608,8 +580,6 @@ class env_pickplace:
             else:
                 piece_grid_pos, _ = self._piece2robotPos(self.piecesLocation['end'][piece], 0, 0)
 
-##              piece_pos = self.piecesLocation['end'][piece]
-##              piece_pos = self._updatePosFromPiece(piece_pos)
                 if (arm_grid_pos == piece_grid_pos):
                     piece_status = 0
                     valid = True
@@ -780,12 +750,8 @@ class env_pickplace:
                 if ((a == self.ACTION_PICK) and (self.armsStatus[i] == 0)) or (((a == self.ACTION_DROP) and (self.armsStatus[i] > 0))):
                     if (self.armsGridPos[i][2] == 0) or \
                        (self.pickPos[i] > 0  and (self.T == 0 or self.armsGridPos[i] != self.T_pos)):
-                        if self.armsGridPos == [[3, 2, 0], [8, 0, 0]] and self.armsStatus == [1,0] and self.piecesStatus == [0] and self.pickPos == [0,0] and self.timeStep == 0:
-                            print(joint_a)
-##                    (self.pickPos[i] > 0  and self.armsGridPos[i] != self.T_pos) or \
-##                    (self.pickPos[i] == 0 and self.armsGridPos[i] != self.T_pos): # actually, intermediate position can be processed
-                       # Add special mark in the reward function
-                       # This state-action pair will be resolved when pieces position is known (later with update() function)
+                        # Add special mark in the reward function
+                        # This state-action pair will be resolved when pieces position is known (later with update() function)
                         state  = self._int2extState(self.armsGridPos, self.armsStatus, self.piecesStatus, self.pickPos, self.timeStep)
                         reward = -30
                         done   = False
@@ -901,19 +867,12 @@ class env_pickplace:
                             # creo que ambas lineas son lo mismo
                             next_pick_pos[i] = reduced_pick_pos + 1 + piece_idx*self.P
 
-### pos should be unchanged
-                        old_pos = pos[:]
                         if pick_pos > 0:
                             if self.piecesStatus[piece_idx] == 1: 
                                 ts_pickpos = ((pick_pos - 1) % self.P) + 1 # pick_pos of piece
                                 pos, _ = self._piece2robotPos(self.piecesLocation['start'][piece_idx], self.timeStep, ts_pickpos)
-##                              pos = self.piecesLocation['start'][piece_idx]
-##                              pos = self._updatePosAtTimeStep(pos, self.timeStep - ts_pickpos)
-##                              pos = self._updatePosFromPiece(pos)
                             else:
                                 pos = self.T_pos
-    #                        if old_pos != pos:
-    #                            print("UIUI con este pos", old_pos, pos, self.timeStep, ts_pickpos)
                     else:
                         break # Nothing to pick up
 
@@ -927,24 +886,17 @@ class env_pickplace:
                             if reduced_pick_pos == 0:
                                 next_pieces_status[piece_idx] = piece_status
                         else:
-                            # creo que ambas lineas son lo mismo
                             next_pick_pos[i] = reduced_pick_pos + 1 + self.P*piece_idx
                             # For convinience, we anticipate the piece status update
                             if reduced_pick_pos == 0:
                                 next_pieces_status[piece_idx] = piece_status
 
-###                        # Fix location
-                        old_pos = pos[:]
+                        # Fix location
                         if pick_pos > 0:
                             if piece_status == 0:
                                 pos, _ = self._piece2robotPos(self.piecesLocation['end'][piece_idx], 0, 0)
-##                              pos = self.piecesLocation['end'][piece_idx]
-##                              pos = self._updatePosFromPiece(pos)
                             else:
                                 pos = self.T_pos
-                            if old_pos != pos:
-                                #    print("UIUI con este END pos", old_pos, pos)
-                                pass
                     else:
                         break # Nothing to drop off
             # stay

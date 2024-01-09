@@ -53,12 +53,12 @@ class mdp_solver():
             path = None
             #policy = self._matrixValueIteration(discount_factor = 0.95)
             policy = self._matrixValueIteration(discount_factor = 1)
-        ## BFS (graph search)
+        # BFS (graph search)
         elif algorithm == mdp_solver.ALG_BFS:
             # to keep the same interface, fake a policy object
             path = self._BFS()
             policy = None
-        ## Dijkstra (graph search)
+        # Dijkstra (graph search)
         #elif algorithm == mdp_solver.ALG_DIJKSTRA:
 
         #    path = Dijkstra(MDP)
