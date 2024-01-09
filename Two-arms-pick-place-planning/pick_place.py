@@ -133,23 +133,23 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     print(src)
 
 
-def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, robot, robot_mdp):
+def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp):
     # TODO: Not yet implemented
     #       Just returning the number of steps in the plan
 
-    return generateTxtPlan(None, pathNactions, initial_pos, pieces, robot, robot_mdp)
+    return generateTxtPlan(None, pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp)
 
 
-def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, robot, robot_mdp):
+def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, pieces_status, robot, robot_mdp):
     #TODO: remove generateTxtPlan (called from other files)
-    return generateTxtPlan(policy, None, initial_pos, pieces, robot, robot_mdp)
+    return generateTxtPlan(policy, None, initial_pos, pieces, pieces_status, robot, robot_mdp)
 
-def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp):
+def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp):
 
     src  = ''
 
     num_steps = 0
-    pieces_status = [1 for _ in range(robot_mdp.K)]
+#    pieces_status = [1 for _ in range(robot_mdp.K)]
     state_idx_int = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0], 0)
     robot_mdp.reset(state_idx_int)
 
@@ -187,7 +187,7 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
         for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
             if p_pos > 0:
                 tmp = (p_pos-1)//robot_mdp.P # piece
-                ts_pickpos = (p_pos-1)%robot_mdp.P # pick_pos of piece
+                ts_pickpos = ((p_pos-1)%robot_mdp.P) + 1 # pick_pos of piece
                 if a_a == robot_mdp.ACTION_PICK:
 ##                  pos = robot_mdp.piecesLocation['start'][tmp]
 ##                  pos = robot_mdp._updatePosAtTimeStep(pos, time_step - ts_pickpos)
@@ -197,7 +197,8 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, robot, robot_mdp)
 ##                  pos = robot_mdp.piecesLocation['end'][tmp]
 ##                  pos = robot_mdp._updatePosAtTimeStep(pos, time_step - ts_pickpos)
 ##                  pos = robot_mdp._updatePosFromPiece(pos)
-                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], time_step, ts_pickpos)
+                    #pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], time_step, ts_pickpos)
+                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], 0, 0)
                 #print('5', x,y,p_pos)
                 tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
             else:

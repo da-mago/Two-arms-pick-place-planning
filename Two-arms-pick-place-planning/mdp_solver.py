@@ -26,7 +26,6 @@ class mdp_solver():
         self.MDP = MDP
         self.init_state = init_state
 
-# CMG comentado hasta generar la lib
         # Load BFS C implementation
         if platform.system() == "Windows":
             filename = "./bfs/c_bfs.dll"

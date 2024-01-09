@@ -153,7 +153,7 @@ if __name__ == "__main__":
                        {'start': [-950, 400, 180],'end'  : [ 150, 500, 180]},
                        {'start': [-450, 500, 180],'end'  : [-350, 200, 180]},
                        {'start': [-650, 500, 180],'end'  : [ 350, 200, 180]} ]
-        test_num_pieces = [2]
+        test_num_pieces = [1]
         test_modes = [ [1    , Cfg.ACTIONS_ORTHO_2D] ]
 
         tc_num = 1
@@ -176,15 +176,19 @@ if __name__ == "__main__":
                 pieces = pieces_cfg[0:num_pieces]
                 t0 = time.time()
                 robot_mdp = mdp_generator(robot, pieces, globalCfg, path)
+#                filename2 = "MDP_{}_known.bin".format(tc_name)
+#                path2 = os.path.join(folder, filename2)
+#                robot_mdp2 = mdp_generator(robot, pieces, globalCfg, path2)
                 t1 = time.time()
                 time_offline = t1 - t0
                 print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
 
-#                robot_mdp.update()
+                robot_mdp.update()
+                #raise Exception("Compare both MDPs")
         
                 algorithms = [mdp_solver.ALG_VALUE_ITERATION, mdp_solver.ALG_BFS]
                 # DMG trick to apply only value iteration
-                algorithms = [mdp_solver.ALG_BFS]
+                algorithms = [mdp_solver.ALG_VALUE_ITERATION]
                 for algorithm in algorithms:
                 #for algorithm in [mdp_solver.ALG_BFS]:
                     # Solve MDP

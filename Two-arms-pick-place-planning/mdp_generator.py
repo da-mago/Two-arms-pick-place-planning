@@ -22,16 +22,6 @@ class mdp_generator(env_pickplace):
             self._generate()
             self._save(filename)
 
-        #for i,s in enumerate([21597, 21600, 21601, 21602, 21604, 21605]):
-        #for s in [21605, 21605, 21605]:
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-#        self._ext2intState(21605)
-
     def _load(self, filename):
         ''' Load MDP from file '''
         try:
@@ -82,18 +72,14 @@ class mdp_generator(env_pickplace):
         mdp_i = {x:i for i,x in enumerate(mdp_v)}
         for i,s in enumerate(valid_states):
             for a in range(self.nA):
-               self.reset(s)
-#               print(s, a, self._getIntState())
-               next_state, reward, done, info = self._step(a, mode=0)
-#               print(next_state, reward, self._getIntState())
-#               print()
-               #next_state, reward, done, info = self._step(a, mode=1)
-               mdp_s[i][a] = states_idx[next_state]
-               mdp_r[i][a] = reward
+                #                if s != 288964: continue
+                self.reset(s)
+                next_state, reward, done, info = self._step(a, mode=1)
+                mdp_s[i][a] = states_idx[next_state]
+                mdp_r[i][a] = reward
             if (i % (valid_nS//100)) == 0:
                 print("." , end='', flush=True)
                 #print(10*i//(valid_nS//10),'%')
-        print("")
 
         # State space layers partition
         # TODO: prioritized_piecesMap must be generic fr n-pieces
@@ -114,9 +100,10 @@ class mdp_generator(env_pickplace):
 
     def update(self):
         ''' Update MDP for a specific configuration of pieces '''
-    
+
+        print("UPDATE MDP")
         offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,-1],[0,0,1]]) # left, rigth, back, fron, down, up
-    
+
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
         #p_ini = [self._updatePosFromPiece(pos) for pos in self.piecesLocation['start']]
@@ -127,34 +114,29 @@ class mdp_generator(env_pickplace):
 
         counter = 0
 
-        #TODO Remove this debug stuff
-        debug = False # Bypass pick_pos states
-        
         # This loop iterates over all states where at least one arm (called 
         # fix-arm) is in position to pick/drop a piece.
-        # This is a subset of all states, so faster then iterating over all states.
+        # This is a subset of the whole state-space, so faster then iterating over all states.
         # Note: suffix "_1" and "_2" refers to fix-arm and other-arm respectively.
-        # 
-        # Fix-arm can be the first or the second arm
-        # ONLY_LEFT_ARM: run only arm==0
 
-        # For one arm (arm1 or arm2) being on any of the init or end pieces position, iterate over
-        # the rest of state combinations. Recall the MDP state formula:
+        # Fix arm (may be either the left or the right one) can be on any of the
+        # init or end pieces position. The other arm may be in any situation.
+        # Recall the MDP state formula:
         #
-        # Total_states = (M*NZ + K*P)^2 * (K+1)^2 * (2+T)^K
-        #              ____/       |          |         |
-        #             /            |          |         |
+        # Total_states = (M*N*Z + K*P)^2 * (K+1)^2 * (2+T)^K
+        #              ____/       |         |         |
+        #             /            |         |         |
         #       armsGridPos     pickPos   armsStatus   piecesStatus
         #
-        #     Grid size: M*N*Z   --------------\ Hence the (M*N*Z + K*P)^2
+        #     Grid size: M*N*Z   ------------\ Hence the (M*N*Z + K*P)^2
         #     Extra pick/frop steps: K*P ----/
         #     Arm status: 0-K (0: empty arm, 1-K: arm carrying piece Ki) -> Hence the (K+1)^2
-        #     Piece status: 0 (piece processed) or (piece not processed) -> Hence the 2^K
+        #     Piece status: 0 (piece processed), 1 (piece not processed) or >=2 to indicate intermediate (T-2) state -> Hence the (2+T)^K
         #
-        # For this arm, iterates over all pick/drop extra steps, and pick/drop
-        # decision is based on the pieces status.
+        # Fix arm iterates over all pick/drop extra steps, and pick/drop
+        # feasibility decision is based on the pieces status.
         #
-        # For the other arm (arm2 or arm1), and pieces state vars, try all combinations
+        # The other arm (right or left), and other pieces state vars, take all combininated values
         #
         # Then for each of the previous valid states (not all of them, only the
         # valida ones), iterate ovar all possible actions in the 'other arm'.
@@ -167,8 +149,9 @@ class mdp_generator(env_pickplace):
         # appropriate next state and reward, since at this point the pieces init
         # and end location is known.
         #
-        # Fix-arm being left or right
         cnt = 0
+        cnt2 = 0
+        # Fix-arm being left or right
         for arm in range(2):
             # Fix-arm state vars loop (only at pieces ini/end positions)
             for i, (pos_ini,pos_end) in enumerate(zip(p_ini, p_end)):
@@ -177,25 +160,28 @@ class mdp_generator(env_pickplace):
                     for xyzp_2 in range(self.M*self.N*self.Z + self.K*self.P):
                         for status_2 in range(self.K+1):
                             # Pieces state vars loop
-                            for ps in range((2+self.T)**self.K):
-    
+                            for ps_tmp in range((2+self.T)**self.K):
+
                                 for time_step in range(self.PS):
+                                    ps = ps_tmp
+                                   # print(ps, time_step)
                                     # Piece status (from scalar to list)
                                     pieces_status = []
                                     for _ in range(self.K):
                                         tmp = ps % (2 + self.T)
                                         ps = (ps - tmp) // (2 + self.T)
                                         pieces_status.insert(0, tmp)
-    
+
                                     # Fix-arm
                                     reduced_pp_1 = tmp_pp_1
-                                    if reduced_pp_1 > 0: pick_pos_1 = reduced_pp_1 + (i * self.P) # Range 0..K*P
+                                    if reduced_pp_1 > 0: pick_pos_1 = reduced_pp_1 + (i * self.P) # Range 0..K*o
                                     else:                pick_pos_1 = 0
                                     if pieces_status[i] == 1:
 ##                                      pos = pos_ini
 ##                                      pos = self._updatePosAtTimeStep(pos, time_step - reduced_pp_1)
 ##                                      pos = self._updatePosFromPiece(pos)
                                         pos, _ = self._piece2robotPos(pos_ini, time_step, reduced_pp_1)
+                                        #DMG si el segundo argumento devuelto es False, we can skip it (continue)
                                         status = 0
                                     elif pieces_status[i] == 0:
 ##                                      pos = pos_end
@@ -205,7 +191,7 @@ class mdp_generator(env_pickplace):
                                     else:
                                         # Not updating intermediate positions for Fix-arm
                                         continue
-    
+
                                     # Other-arm
                                     if xyzp_2 < (self.M * self.N * self.Z):
                                         pos_2 = self._idx2xy(xyzp_2)
@@ -214,7 +200,7 @@ class mdp_generator(env_pickplace):
                                         #pos_2 = [-1, -1, -1] # undefined
                                         pos_2 = self.robot.unknown_pos
                                         pick_pos_2 = xyzp_2 + 1 - (self.M * self.N * self.Z)
-    
+
                                     ## Get internal scalar state representation (from internal state vars)
 				    ## DMG esto hay que pensarlo bien
                                     if time_step < (self.PS - 1):
@@ -228,35 +214,42 @@ class mdp_generator(env_pickplace):
                                     else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step)
                                     #if arm == 0: state = self._int2extState([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2])
                                     #else:        state = self._int2extState([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1])
-     
-                                    if time_step == 1 and pos == [1,1,0] and pieces_status == [1] and status_2 == 0 and pick_pos_1 == 0 and pick_pos_2 == 0 and pos_2 == [8,0,0]:
-                                        print(12121212, state)
-                                    if state == 46473:
-                                        print(12345)
+
+                                    if arm == 1 and status == 0 and time_step == 25 and pos_2 == [0,0,0] and status_2 == 0 and pieces_status == [0,1]: print(state, arm, pos_2, pos, [pick_pos_1, pick_pos_2])
                                     # Check valid state
                                     if state not in states_idx:
                                         continue
-    
+
                                     # Get MDP scalar state from internal scalar state
                                     idx = states_idx[state]
-    
+
                                     # Taking action in Fix-arm
                                     next_pieces_status = pieces_status[:]
-    
+
                                     # Taking action
                                     a = self.ACTION_PICK if status == 0 else self.ACTION_DROP # Fix-arm action
-    
+
+#                                    if arm == 0: print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, ps )
+#                                    else:        print([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step, ps )
                                     for a_2 in range(self.single_nA): # Other_arm action
-    
+
                                         if arm == 0: joint_a = [a, a_2]
                                         else:        joint_a = [a_2, a]
-    
+
                                         action = self._int2extAction(joint_a)
-    
+
                                         if self.MDP[1][idx][action] != -30:
+#                                            if arm == 0: print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, joint_a, self.MDP[1][idx][action])
+#                                            else:        print([pos_2, pos], [status_2, status], pieces_status, [pick_pos_2, pick_pos_1], time_step, joint_a, self.MDP[1][idx][action])
+                                ##          if status == 0 and status_2 == 0 and pieces_status == [0,0]:
+                                ##              print([pos, pos_2], [status, status_2], pieces_status, [pick_pos_1, pick_pos_2], time_step, joint_a)
                                             # Not marked to be updated
+#                                            print(state, joint_a)
+                                            #raise Exception("HOLA")
+                                            cnt2 += 1
                                             continue
-    
+                                            
+
                                         cnt += 1
                                         # Using _step() implementation (slower then code here after continue)
                                         self.reset(state)
@@ -266,21 +259,14 @@ class mdp_generator(env_pickplace):
                                         if next_state in states_idx:
                                             self.MDP[0][idx][action] = states_idx[next_state]
                                             self.MDP[1][idx][action] = reward
+#                                            print(state, joint_a)
                                             counter += 1
-                                            if state == 46401:
-                                                print('oleee',states_idx[next_state],state,a, a_2,reward)
-                                        elif state == 46401:
-                                            print('NOOOOO')
-                                        # Done
-                                        continue
+##                                        # Done
+##                                        continue
 
-        print("CNT ", cnt)
-        cnt = 0
-        for ra in self.MDP[1]:
-            for r in ra:
-                if  r == -30:
-                    cnt += 1
-        print("CNT ", cnt)
+        print("CNT      :", cnt)
+        print("CNT2     :", cnt2)
+        print("CNT (-30):", np.count_nonzero(self.MDP[1] == -30))
 
 
 
