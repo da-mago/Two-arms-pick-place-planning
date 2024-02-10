@@ -19,11 +19,13 @@ class GlobalConfig:
     def __init__(self,
                  grid_num_layers,
                  actions_mode,
-                 collision_min_distance):
+                 collision_min_distance,
+                 algorithm):
 
         self.grid_num_layers = grid_num_layers
         self.actions_mode = actions_mode
         self.collision_min_distance = collision_min_distance
+        self.algorithm = algorithm
 
 
 

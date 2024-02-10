@@ -98,11 +98,14 @@ class mdp_generator(env_pickplace):
 
         self.MDP = [mdp_s, mdp_r, mdp_v, mdp_i, mdp_l] # next_state, reward, state reduction mapping, inverse state reduction mapping, layered partitions
 
-    def update(self):
+    def update(self, piecesCfg=None):
         ''' Update MDP for a specific configuration of pieces '''
 
-        print("UPDATE MDP")
+#        print("UPDATE MDP")
         offset_a = np.array([[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,-1],[0,0,1]]) # left, rigth, back, fron, down, up
+
+        if piecesCfg:
+            self.piecesLocation = self._setPiecesLocation(piecesCfg)
 
         p_ini = [pos for pos in self.piecesLocation['start']]
         p_end = [pos for pos in self.piecesLocation['end']  ]
@@ -229,7 +232,7 @@ class mdp_generator(env_pickplace):
                                         action = self._int2extAction(joint_a)
 
 ## debug info
-                                        if self.MDP[1][idx][action] != -30:
+                                        if self.MDP[1][idx][action] != -130:
                                             #raise Exception("HOLA")
                                             cnt2 += 1
                                             continue
@@ -243,9 +246,9 @@ class mdp_generator(env_pickplace):
                                             self.MDP[1][idx][action] = reward
                                             counter += 1
 
-        print("CNT      :", cnt)
-        print("CNT2     :", cnt2)
-        print("CNT (-30):", np.count_nonzero(self.MDP[1] == -30))
+#        print("CNT      :", cnt)
+#        print("CNT2     :", cnt2)
+#        print("CNT (-30):", np.count_nonzero(self.MDP[1] == -30))
 
 
 
@@ -295,8 +298,11 @@ if __name__ == "__main__":
     mdp_test = mdp_generator(robot, pieces)
 
     if not mdp_test.load('MDP.bin'):
+        t0 = time.time()
         mdp_test.generate()
         mdp_test.save('MDP.bin')
+        time_offline = time.time() - t0
+        print("Time Offline: {}h {}m {}s".format(int(time_offline/3600), int((time_offline%3600)/60), int(time_offline%60)))
 
     #mdp_test.update(pieces)
     mdp_test.update()

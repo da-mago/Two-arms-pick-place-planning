@@ -22,44 +22,68 @@ class mdp_solver():
     ALG_BFS = 1
     ALG_DIJKSTRA = 2
 
-    def __init__(self, MDP, init_state=0):
+    def __init__(self, MDP, init_state = 0, algorithm = ALG_VALUE_ITERATION):
         self.MDP = MDP
         self.init_state = init_state
+        self.algorithm = algorithm
 
-        # Load BFS C implementation
-        if platform.system() == "Windows":
-            filename = "./bfs/c_bfs.dll"
-        else:
-            filename = "./bfs/c_bfs.so"
+        if algorithm == mdp_solver.ALG_BFS:
+            # Load BFS C implementation
+            if platform.system() == "Windows":
+                filename = "./bfs/c_bfs.dll"
+            else:
+                filename = "./bfs/c_bfs.so"
 
-        lib = ctypes.cdll.LoadLibrary(filename)
+            lib = ctypes.cdll.LoadLibrary(filename)
 
-        lib.BFS.restype = None
-        lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
-                             ctypes.c_size_t,  # n_states
-                             ctypes.c_size_t,  # n_actions
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
-                             ndpointer(ctypes.c_int16, flags="C_CONTIGUOUS"),  # rewards
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
-                             ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
-                             ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
+            lib.BFS.restype = ctypes.c_int
+            lib.BFS.argtypes = [ ctypes.c_size_t,  # init_state
+                                 ctypes.c_size_t,  # n_states
+                                 ctypes.c_size_t,  # n_actions
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
+                                 ndpointer(ctypes.c_int16,  flags="C_CONTIGUOUS"), # rewards
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
+                                 ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
 
-        self.C_BFS = lib.BFS
+            self.C_BFS = lib.BFS
 
-    def solve(self, algorithm=0):
+        elif algorithm == mdp_solver.ALG_DIJKSTRA:
+            # Load Dijkstra C implementation
+            if platform.system() == "Windows":
+                filename = "./Dijkstra/c_dijkstra.dll"
+            else:
+                filename = "./Dijkstra/c_dijkstra.so"
+
+            lib = ctypes.cdll.LoadLibrary(filename)
+
+            lib.Dijkstra.restype = ctypes.c_int
+            lib.Dijkstra.argtypes = [ ctypes.c_size_t,  # init_state
+                                 ctypes.c_size_t,  # n_states
+                                 ctypes.c_size_t,  # n_actions
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # states
+                                 ndpointer(ctypes.c_int16,  flags="C_CONTIGUOUS"), # rewards
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path
+                                 ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"), # path_len
+                                 ndpointer(ctypes.c_uint16, flags="C_CONTIGUOUS")] # actions
+
+            self.C_Dijkstra = lib.Dijkstra
+
+    def solve(self):
 
         # Value Iteration
-        if algorithm == mdp_solver.ALG_VALUE_ITERATION:
+        if self.algorithm == mdp_solver.ALG_VALUE_ITERATION:
             path = None
             #policy = self._matrixValueIteration(discount_factor = 0.95)
             policy = self._matrixValueIteration(discount_factor = 1)
         # BFS (graph search)
-        elif algorithm == mdp_solver.ALG_BFS:
-            # to keep the same interface, fake a policy object
+        elif self.algorithm == mdp_solver.ALG_BFS:
             path = self._BFS()
             policy = None
         # Dijkstra (graph search)
-        #elif algorithm == mdp_solver.ALG_DIJKSTRA:
+        elif self.algorithm == mdp_solver.ALG_DIJKSTRA:
+            path = self._Dijkstra()
+            policy = None
 
         #    path = Dijkstra(MDP)
         #    policy = None
@@ -77,7 +101,7 @@ class mdp_solver():
             model it as matrices and let numpy do the magic
         '''
     
-        print("Solver: Value Iteration")
+#        print("Solver: Value Iteration")
 
         states, rewards  = self.MDP
         V = np.zeros(len(states), dtype=np.float32)
@@ -119,7 +143,7 @@ class mdp_solver():
     def _BFS(self):
         ''' Bread First Serch algorithm '''
     
-        print("Solver: BFS")
+#        print("Solver: BFS")
 
         states     = self.MDP[0]
         rewards    = self.MDP[1]
@@ -127,7 +151,7 @@ class mdp_solver():
         # Call BFS from C shared library
         if True:
             path       = np.ones((100,), dtype=np.uint32)
-            path_len   = np.ones((1,), dtype=np.uint32)
+            path_len   = np.ones((1,),   dtype=np.uint32)
             actions    = np.ones((100,), dtype=np.uint16)
             n_states   = len(states)
             n_actions  = len(states[0])
@@ -186,6 +210,38 @@ class mdp_solver():
     
             print("  Path not found!!!", count)
             return []
+
+    def _Dijkstra(self):
+        ''' Bread First Serch algorithm '''
+    
+#        print("Solver: Dijkstra")
+
+        states     = self.MDP[0]
+        rewards    = self.MDP[1]
+
+        # Call Dijkstra from C shared library
+        if True:
+            path       = np.ones((100,), dtype=np.uint32)
+            path_len   = np.ones((1,),   dtype=np.uint32)
+            actions    = np.ones((100,), dtype=np.uint16)
+            n_states   = len(states)
+            n_actions  = len(states[0])
+            status = self.C_Dijkstra(self.init_state, n_states, n_actions, states, rewards, path, path_len, actions)
+            if status == 0:
+                path_len = int(path_len)
+                path = path[:path_len][::-1]
+                actions = actions[:path_len][::-1]
+    
+                pathNactions = [path, actions]
+            else:
+                pathNactions = [[], []]
+    
+            return pathNactions
+
+        # Python Dijkstra version
+        else:
+            raise Exception("Dijkstra not implemented in python")
+
 
 if __name__ == "__main__":
 

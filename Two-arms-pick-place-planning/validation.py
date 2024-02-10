@@ -42,7 +42,7 @@ def DoSanityCheck(pieces_cfg, armsGridPos):
     status = True
 
     # Create robot instance (so implicity parsing excels content)
-    globalCfg = Cfg(1, 0, 100)
+    globalCfg = Cfg(1, 0, 100, 0)
     robot = Robot_YuMi(globalCfg)
     # Create environment (just to convert Physical to grid pos)
     env = env_pickplace(robot, pieces_cfg, globalCfg)
@@ -149,11 +149,7 @@ if __name__ == "__main__":
         test_num_pieces = [2, 4, 6, 8, 9, 10]
 
         # Trick to test a single use-case
-        pieces_cfg = [ {'start': [-750, 300, 180],'end'  : [-150, 400, 180]}, 
-                       {'start': [-950, 400, 180],'end'  : [ 150, 500, 180]},
-                       {'start': [-450, 500, 180],'end'  : [-350, 200, 180]},
-                       {'start': [-650, 500, 180],'end'  : [ 350, 200, 180]} ]
-        test_num_pieces = [1]
+        test_num_pieces = [2]
         test_modes = [ [1    , Cfg.ACTIONS_ORTHO_2D] ]
 
         tc_num = 1
@@ -165,7 +161,7 @@ if __name__ == "__main__":
                 print(CORANGE + "\nTEST CASE {}: {}".format(tc_num, tc_name) + CEND)
         
                 # User config
-                globalCfg = Cfg(num_layers, action_mode, distance)
+                globalCfg = Cfg(num_layers, action_mode, distance, 0)
                 
                 # Robot
                 robot = Robot_YuMi(globalCfg)
@@ -193,11 +189,12 @@ if __name__ == "__main__":
                 #for algorithm in [mdp_solver.ALG_BFS]:
                     # Solve MDP
                     f_reward, f_transition = robot_mdp.MDP[0:2]
-                    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0], 0)  ]
+                    pieces_status = [1 for _ in range(robot_mdp.K)]
+                    init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], pieces_status, [0,0], 0)  ]
                     #init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0])  ]
                     t1 = time.time()
-                    solver = mdp_solver([f_reward, f_transition], init_state)
-                    policy, pathNactions = solver.solve(algorithm)
+                    solver = mdp_solver([f_reward, f_transition], init_state, algorithm)
+                    policy, pathNactions = solver.solve()
         
                     if policy is not None:
                         # Validate policy
@@ -211,11 +208,11 @@ if __name__ == "__main__":
                     if status:
                         print("  Generating RobotStudio plan")
                         if policy is not None:
-                            _, steps, plan = pick_place.generateRobotStudioInputFromPolicy(policy, armsGridPos, pieces, robot, robot_mdp)
+                            _, steps, plan = pick_place.generateRobotStudioInputFromPolicy(policy, armsGridPos, pieces, pieces_status, robot_mdp)
                         else:
                             #for p in path:
                             #    print(robot_mdp._ext2intState(robot_mdp.MDP[2][p]))
-                            _, steps, plan = pick_place.generateRobotStudioInputFromPath(pathNactions, armsGridPos, pieces, robot, robot_mdp)
+                            _, steps, plan = pick_place.generateRobotStudioInputFromPath(pathNactions, armsGridPos, pieces, pieces_status, robot_mdp)
     
                         filename = "RobotStudio_{}_alg{}.txt".format(tc_name, algorithm)
                         path = os.path.join(folder, filename)

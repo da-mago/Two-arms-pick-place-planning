@@ -10,7 +10,7 @@
  *   $ gcc -fPIC -shared -o c_bfs.so c_bfs.c
  *
  * - Windows (x64 Native Tools Command Prompt for VS 2022)
- *   $ cl /LD bfs.c /Fe:bfs.dll 
+ *   $ cl /LD c_bfs.c /Fe:c_bfs.dll 
  */
 
 MYLIB_EXPORT 
@@ -58,14 +58,14 @@ void BFS(uint32_t  init_state,
           int16_t r;
 
           r = rewards[state*n_actions + action];
-          if (r < (-1))
+          if (r < (-10))
           {
               // Discard it (bad action)
               continue;
           }
           else if (r > 50)
           {
-              // Done
+              // Done (algorithm customized for the case where all costs are the same)
               next_state = states[state*n_actions + action];
               state_previous[next_state] = state;
               action_previous[next_state] = action;

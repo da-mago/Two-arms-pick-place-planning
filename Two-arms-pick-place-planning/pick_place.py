@@ -133,14 +133,70 @@ def generatePythonPlan(policy, initial_pos, pieces, robot, robot_mdp, globalCfg)
     print(src)
 
 
-def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp):
-    return generateTxtPlan(None, pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp)
+def generateRobotStudioInputFromPath(pathNactions, initial_pos, pieces, pieces_status, robot_mdp):
+    return generateTxtPlan(None, pathNactions, initial_pos, pieces, pieces_status, robot_mdp)
 
 
-def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, pieces_status, robot, robot_mdp):
-    return generateTxtPlan(policy, None, initial_pos, pieces, pieces_status, robot, robot_mdp)
+def generateRobotStudioInputFromPolicy(policy, initial_pos, pieces, pieces_status, robot_mdp):
+    return generateTxtPlan(policy, None, initial_pos, pieces, pieces_status, robot_mdp)
 
-def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, robot, robot_mdp):
+def planStep(policy, pathNactions, state_idx_int, gripper, robot_mdp, num_steps):
+
+    src = ''
+
+    if policy is None:
+        # Path is directly a list of states
+        action = pathNactions[1][num_steps]
+        state_idx_ext = pathNactions[0][num_steps]
+        state_idx_int = robot_mdp.MDP[2][state_idx_ext]
+        done = True if (num_steps >= (len(pathNactions[0]) - 1)) else False
+    else:
+        # Policy is action=f(state)
+        state_idx_ext = robot_mdp.MDP[3][state_idx_int]
+        action = policy[state_idx_ext]
+        state_idx_int, _, done, _ = robot_mdp._step(action)
+
+    arms_pos, _, _, pick_pos, time_step = robot_mdp._ext2intState(state_idx_int)
+    poss = []
+    zs   = []
+    z_plane = []
+    joint_a = robot_mdp._ext2intAction(action)
+
+    for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
+        if p_pos > 0:
+            tmp = (p_pos-1)//robot_mdp.P # piece
+            ts_pickpos = ((p_pos-1)%robot_mdp.P) + 1 # pick_pos of piece
+            if a_a == robot_mdp.ACTION_PICK:
+                pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['start'][tmp], time_step, ts_pickpos)
+            else:
+                pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], 0, 0)
+            #print('5', x,y,p_pos)
+            tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
+        else:
+            pos = a_pos
+            tmp_p_pos = 0
+        poss.append(pos)
+        # Go down, up, open, close gripper
+        #                                                     opened/closed           Z                arm Zcomment (grip action)        
+        if tmp_p_pos == 0:
+            if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);
+            else:                                                              z_plane.append(0);
+        elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);
+        elif (tmp_p_pos == robot_mdp.P/2 + 1) and \
+              a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);
+        elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);
+        else:                                                                  z_plane.append(1);
+        
+    arms_config    = [list(robot_mdp.robot.config[i, x,y,(z if gblock == 0 else robot_mdp.robot.Z)]) for i,((x,y,z),gblock) in enumerate(zip(poss, z_plane))]
+
+    for i,(ang, grip) in enumerate(zip(reversed(arms_config), reversed(gripper))):
+        # Format:  ANGLES, grip state
+        src += ','.join([str(x) for x in ang]) 
+        src += ',{}\n'.format(grip) 
+
+    return src, state_idx_int, gripper, done
+
+def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, robot_mdp):
 
     src  = ''
 
@@ -148,6 +204,7 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, ro
 #    pieces_status = [1 for _ in range(robot_mdp.K)]
     state_idx_int = robot_mdp._int2extState(initial_pos, [0,0], pieces_status, [0,0], 0)
     robot_mdp.reset(state_idx_int)
+    robot = robot_mdp.robot
 
     arms_config = [list(robot.config[i, x,y,z]) for i,(x,y,z) in enumerate(initial_pos)]
 
@@ -158,61 +215,67 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, ro
         src += ',{}\n'.format(grip) # Axis conversion for RobotStudio
 
     done = False
+    gripper = [0,0] # Gripper state: 0 (Open) | 1 (Close)
     while done == False:
 
-        if policy is None:
-            # Path is directly a list of states
-            action = pathNactions[1][num_steps]
-            state_idx_ext = pathNactions[0][num_steps]
-            state_idx_int = robot_mdp.MDP[2][state_idx_ext]
-            done = True if (num_steps >= (len(pathNactions[0]) - 1)) else False
-        else:
-            # Policy is action=f(state)
-            state_idx_ext = robot_mdp.MDP[3][state_idx_int]
-            action = policy[state_idx_ext]
-            state_idx_int, _, done, _ = robot_mdp._step(action)
-
+        src_step, state_idx_int, gripper, done = planStep(policy, pathNactions, state_idx_int, gripper, robot_mdp, num_steps)
+        src += src_step
         num_steps += 1
 
-        arms_pos, _, _, pick_pos, time_step = robot_mdp._ext2intState(state_idx_int)
-        poss = []
-        zs   = []
-        z_plane = []
-        joint_a = robot_mdp._ext2intAction(action)
 
-        for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
-            if p_pos > 0:
-                tmp = (p_pos-1)//robot_mdp.P # piece
-                ts_pickpos = ((p_pos-1)%robot_mdp.P) + 1 # pick_pos of piece
-                if a_a == robot_mdp.ACTION_PICK:
-                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['start'][tmp], time_step, ts_pickpos)
-                else:
-                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], 0, 0)
-                #print('5', x,y,p_pos)
-                tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
-            else:
-                pos = a_pos
-                tmp_p_pos = 0
-            poss.append(pos)
-            # Go down, up, open, close gripper
-            #                                                     opened/closed           Z                arm Zcomment (grip action)        
-            if tmp_p_pos == 0:
-                if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);
-                else:                                                              z_plane.append(0);
-            elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);
-            elif (tmp_p_pos == robot_mdp.P/2 + 1) and \
-                  a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);
-            elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);
-            else:                                                                  z_plane.append(1);
-            
-        arms_config    = [list(robot.config[i, x,y,(z if gblock == 0 else robot.Z)]) for i,((x,y,z),gblock) in enumerate(zip(poss, z_plane))]
-
-        for i,(ang, grip) in enumerate(zip(reversed(arms_config), reversed(gripper))):
-            # Format:  ANGLES, grip state
-            src += ','.join([str(x) for x in ang]) 
-            src += ',{}\n'.format(grip) 
-
-    return arms_pos, num_steps, src
+##        if policy is None:
+##            # Path is directly a list of states
+##            action = pathNactions[1][num_steps]
+##            state_idx_ext = pathNactions[0][num_steps]
+##            state_idx_int = robot_mdp.MDP[2][state_idx_ext]
+##            done = True if (num_steps >= (len(pathNactions[0]) - 1)) else False
+##        else:
+##            # Policy is action=f(state)
+##            state_idx_ext = robot_mdp.MDP[3][state_idx_int]
+##            action = policy[state_idx_ext]
+##            state_idx_int, _, done, _ = robot_mdp._step(action)
+##
+##        num_steps += 1
+##
+##        arms_pos, _, _, pick_pos, time_step = robot_mdp._ext2intState(state_idx_int)
+##        poss = []
+##        zs   = []
+##        z_plane = []
+##        joint_a = robot_mdp._ext2intAction(action)
+##
+##        for i, (a_pos, p_pos, a_a) in enumerate(zip(arms_pos, pick_pos, joint_a)):
+##            if p_pos > 0:
+##                tmp = (p_pos-1)//robot_mdp.P # piece
+##                ts_pickpos = ((p_pos-1)%robot_mdp.P) + 1 # pick_pos of piece
+##                if a_a == robot_mdp.ACTION_PICK:
+##                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['start'][tmp], time_step, ts_pickpos)
+##                else:
+##                    pos, _ = robot_mdp._piece2robotPos(robot_mdp.piecesLocation['end'][tmp], 0, 0)
+##                #print('5', x,y,p_pos)
+##                tmp_p_pos = ((p_pos-1)%robot_mdp.P) + 1
+##            else:
+##                pos = a_pos
+##                tmp_p_pos = 0
+##            poss.append(pos)
+##            # Go down, up, open, close gripper
+##            #                                                     opened/closed           Z                arm Zcomment (grip action)        
+##            if tmp_p_pos == 0:
+##                if a_a == robot_mdp.ACTION_PICK or a_a == robot_mdp.ACTION_DROP:   z_plane.append(0);
+##                else:                                                              z_plane.append(0);
+##            elif tmp_p_pos < (robot_mdp.P/2 + 1):                                  z_plane.append(1);
+##            elif (tmp_p_pos == robot_mdp.P/2 + 1) and \
+##                  a_a == robot_mdp.ACTION_PICK:                   gripper[i] = 1;  z_plane.append(1);
+##            elif (tmp_p_pos == robot_mdp.P/2 + 1):                gripper[i] = 0;  z_plane.append(1);
+##            else:                                                                  z_plane.append(1);
+##            
+##        arms_config    = [list(robot.config[i, x,y,(z if gblock == 0 else robot.Z)]) for i,((x,y,z),gblock) in enumerate(zip(poss, z_plane))]
+##
+##        for i,(ang, grip) in enumerate(zip(reversed(arms_config), reversed(gripper))):
+##            # Format:  ANGLES, grip state
+##            src += ','.join([str(x) for x in ang]) 
+##            src += ',{}\n'.format(grip) 
+    arms_pos_unused = 0
+    return arms_pos_unused, num_steps, src
 
 
 if __name__ == "__main__":
@@ -267,8 +330,8 @@ if __name__ == "__main__":
 
     # Solve MDP
     init_state = robot_mdp.MDP[3][ robot_mdp._int2extState(armsGridPos, [0,0], [1 for _ in range(robot_mdp.K)], [0,0],0)  ]
-    solver = mdp_solver(robot_mdp.MDP[0:2], init_state)
-    policy = solver.solve(0)
+    solver = mdp_solver(robot_mdp.MDP[0:2], init_state, 0)
+    policy = solver.solve()
     print("\n\nAlgorithm execution {}\n\n".format(time.time() - algorithm_time))
     if isinstance(policy, list):
         for state in policy:
