@@ -277,9 +277,11 @@ class env_pickplace:
         x,y,z = ref_pos
         # Piece location after several time_steps
         x -= time_step
-        if time_step:
-            # We only want to substract if time_step is used
-            x += pick_pos
+#        if time_step:
+#            # We only want to substract if time_step is used
+#            x += pick_pos
+        #DMG: mayeb do the IF based on the self.PS
+        x += pick_pos
         # Limit x pos
         # DMG deberiámos invalidar estados donde las piezas salen del grid en lugar de limitar X
 #        x = min(x, ((self.M - 1)*self.R2P_ratio) + 1)
@@ -963,9 +965,9 @@ class env_pickplace:
                     if move_both_arms == False: reward = -10 # 1 arm
                     else:                       reward = -10 # 2 arms
 
-                    # bonificar para que quede una pieza cuanto antes
-                    pending_pieces = [1 for i in range(self.K) if self.piecesStatus[i] == 1 or (i+1) in self.armsStatus]
-                    if len(pending_pieces) <= 1: reward = -9
+#                    # bonificar para que quede una pieza cuanto antes
+#                    pending_pieces = [1 for i in range(self.K) if self.piecesStatus[i] == 1 or (i+1) in self.armsStatus]
+#                    if len(pending_pieces) <= 1: reward = -9
         else:
             # The same reward (punishment) for any unwanted action
             reward = -120

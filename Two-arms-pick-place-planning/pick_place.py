@@ -212,7 +212,7 @@ def generateTxtPlan(policy, pathNactions, initial_pos, pieces, pieces_status, ro
     for ang, grip in zip(reversed(arms_config), reversed(gripper)):
         # Format: ANGLES + GRIPPER (opened/closed)
         src += ','.join([str(x) for x in ang]) 
-        src += ',{}\n'.format(grip) # Axis conversion for RobotStudio
+        src += ',{}\n'.format(grip)
 
     done = False
     gripper = [0,0] # Gripper state: 0 (Open) | 1 (Close)

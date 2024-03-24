@@ -247,20 +247,45 @@ if __name__ == "__main__":
     armsGridPos = [[6, 4, 0], [8, 0, 0]]
     
     # Pre-define the initial location of all pieces involved in the task (ordered from closer to farther)
-    all_pieces = [ {'start': [ -850, 300, 180],'end'  : [-150, 600, 180]}, 
-                   {'start': [ -950, 400, 180],'end'  : [ -50, 600, 180]},
-                   {'start': [-1050, 500, 180],'end'  : [ 150, 600, 180]},
-                   {'start': [-1150, 500, 180],'end'  : [ 150, 600, 180]},
-                   {'start': [-1250, 500, 180],'end'  : [  50, 600, 180]},
-                   {'start': [-1350, 400, 180],'end'  : [ -50, 600, 180]},
-                   {'start': [-1450, 300, 180],'end'  : [-150, 600, 180]}, 
-                   {'start': [-1550, 500, 180],'end'  : [ 150, 600, 180]},
-                   {'start': [-1650, 500, 180],'end'  : [  50, 600, 180]},
-                   {'start': [-1750, 400, 180],'end'  : [ -50, 600, 180]},
-                   {'start': [-1850, 300, 180],'end'  : [-150, 600, 180]} ]
-#    all_pieces = all_pieces[:9]
+    # test_case 1
+    test_case_1 = [ {'start': [ -850, 300, 180],'end'  : [-150, 600, 180]}, 
+                    {'start': [ -950, 400, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1050, 500, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1150, 500, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1350, 400, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1450, 300, 180],'end'  : [-150, 600, 180]}, 
+                    {'start': [-1550, 500, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1650, 500, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-1750, 400, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1910, 300, 180],'end'  : [-150, 600, 180]},
+                    {'start': [-2070, 400, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-2210, 300, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-2550, 300, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-2650, 300, 180],'end'  : [-150, 600, 180]},
+                    {'start': [-2750, 500, 180],'end'  : [ 150, 600, 180]},
+    ]
+    # test_case 2 (fail)
+    test_case_2 = [ {'start': [ -850, 500, 180],'end'  : [-150, 600, 180]}, 
+                    {'start': [ -950, 400, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1050, 500, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-1150, 300, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1250, 300, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-1550, 300, 180],'end'  : [-150, 600, 180]},
+                    {'start': [-1650, 500, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1750, 400, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1850, 300, 180],'end'  : [-150, 600, 180]} ]
+
+    test_case_3 = [ {'start': [ -850, 500, 180],'end'  : [-150, 600, 180]}, 
+                    {'start': [ -950, 400, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1050, 500, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-1150, 300, 180],'end'  : [ -50, 600, 180]},
+                    {'start': [-1250, 300, 180],'end'  : [  50, 600, 180]},
+                    {'start': [-1550, 300, 180],'end'  : [-150, 600, 180]},
+                    {'start': [-1690, 500, 180],'end'  : [ 150, 600, 180]},
+                    {'start': [-1890, 300, 180],'end'  : [-150, 600, 180]} ]
     # Project configuration
-    max_mdp_pieces = 4
+    all_pieces = test_case_3
+    max_mdp_pieces = 2
     grid_layers = 1
     action_mode = Cfg.ACTIONS_ORTHO_2D # ACTIONS_ORTHO_2D | ACTIONS_ORTHO_2D_DIAG_2D
     distance = 50
@@ -335,10 +360,16 @@ if __name__ == "__main__":
 
         # Is there any new piece/s detected? If so, update detected_pieces list
         new_detected = [piece for piece in all_pieces if piece['start'][0] == (camera_pos + 20)]
+        for i,piece in enumerate(all_pieces):
+            if piece['start'][0] == (camera_pos + 20):
+                print("*** At idx ", i, len(all_pieces), "          ")
+                print(all_pieces)
         detected_pieces.extend(new_detected)
         undetected_idx += len(new_detected)
 #        print('detected: ', detected_pieces)
-        print_DEBUG('t={}, detected={}, is_plan={}'.format(t, len(detected_pieces), plan != None))
+        print_DEBUG('t={}, detected={}, is_plan={}  '.format(t, len(detected_pieces), plan != None))
+        print('t={}, undetected_idx={} detected={}, is_plan={}'.format(t, undetected_idx, len(detected_pieces), plan != None))
+        for p in detected_pieces: print("detected {}".format(p['start']))
 
         # can one or more detected pieces be incorporated to the MDP? If so, regenerate the plan
         regenerate_plan = False
