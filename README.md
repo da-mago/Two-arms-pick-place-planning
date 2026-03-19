@@ -51,6 +51,6 @@ This algorithm shows the pseudocode that outlines the reasoning used to identify
 
 At the centre of the figure, subproblem description is shown. Subproblem 3 and Subproblem 4 are described. In each case, “Left arm” and “Right arm” discrete positions are listed. Positions marked with a colour represent a pick or a place operation and marking colour represents the colour of the piece. Note that Subproblem 3 planned placing blue piece first and yellow piece after, but when blue piece is placed, a new Subproblem is solved because a new red piece has to be processed. The new plan (Subproblem 4) realises that it is faster to pick red piece before placing the yellow one as it was previously planned. 
 
-Example:
+Figure:
 
-![Picture missing](images/F15a.png)
+![Picture missing](images/F16.png)
