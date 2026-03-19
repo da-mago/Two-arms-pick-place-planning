@@ -9,7 +9,7 @@ Download the repository and make sure all dependencies are satisfied:
 
     pip install -r requirements
 
-# Introduction
+# Introduction 
 
 This article tackles the challenge of automating the pick-and-place operation of multiple moving objects by a dual-arm robot while avoiding collisions between manipulators and minimising the execution time. The system is able to generate each robot’s trajectory to complete the task in the minimum time. This application is addressed from the mathematical framework of Markov Decision Processes (MDP). To do so, the workspace has been discretized to get a finite set of states connected by a set of actions. This work is focused on automation of industrial production and uses Reinforcement Learning to achieve high level of performance and flexibility. In this study, the model is tailored to suit a deterministic setup, where a single agent oversees the entire operation and enjoys full visibility into the system. The result is a methodology for using MDPs in time-changing processes which, when applied to bimanual manipulation, provides the following advantages: It devises optimal trajectories for completing tasks satisfactorily; Accounts for collision avoidance between manipulators and; Automatically generates robot code compatible with different manufacturers. The outcome fulfils the outlined objectives, yielding a robust solution.
 
