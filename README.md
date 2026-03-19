@@ -17,7 +17,7 @@ This article tackles the challenge of automating the pick-and-place operation of
 
 This algorithm shows the pseudocode that outlines the reasoning used to identify the necessity of a new subproblem and the implementation of the calculated plan to resolve this subproblem. Initially, there are no pieces in the workspace area, hence there is no subproblem defined and the robots keep in idle state. The algorithm operates at the granularity of the time step. At each time step, the algorithm dispatches the subsequent action (line 24) for the robots from the existing plan, if available. If specific criteria are fulfilled, the whole plan is redeveloped (line 14), and the system performs the updated plan.
 
-´´´
+```
 1:     // Initially, there is not any plan active (robots keep idle)
  2:     time_step = 0
  3:     plan = None
@@ -45,7 +45,7 @@ This algorithm shows the pseudocode that outlines the reasoning used to identify
 25:	     ENDIF
 26:	     // Prepare for the next time step
 27:     ENDLOOP
-´´´
+```
 
 # Change the initial conditions
 If you intend to try with different initial conditions, you'll need to edit the code for that.
