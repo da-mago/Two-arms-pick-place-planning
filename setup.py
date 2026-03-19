@@ -8,3 +8,4 @@ setuptools.setup(
     packages=['Two-arms-pick-place-planning'],
     install_requires=install_requires
     )
+  
