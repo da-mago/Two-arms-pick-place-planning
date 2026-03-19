@@ -1,10 +1,8 @@
-# Two-arms-pick-place-planning
+# Two-arms-pick-place-planning of moving-objects
 
-This repository contains the source code accompanying this paper:
+This repository contains the source code accompanying this research:
 
-   xxxxxx not yet available xxxxxx
-
-![Robot setup picture missing](images/setup2.jpg)
+![Robot setup picture missing](images/F15a.jpg)
 
 # Installation
 Download the repository and make sure all dependencies are satisfied:
@@ -12,15 +10,8 @@ Download the repository and make sure all dependencies are satisfied:
     pip install -r requirements
 
 # Introduction
-The problem at hand is a multi-robot pick&place task. This project purpose is to find a way to automate the generation of a solution to this problem.
-This includes managing high level concepts such as trajectories, collision avoidance, task time minimization, ...
 
-Note: the source code is intended to be generic on the number of robots and pieces, but currently it is supporting only two robots use case.
-
-This repository implements three different algorithms to solve the problem: Value Iteration, BFS and PDDL. In the first case, the problem is modeled as Markov Decision Process. In the second case, it is modeled as a graph and in the latter one, in PPDL language.
-
-Note: BFS algorithm is implemented in C and later imported in the python project as a module
-Example (10 pieces use-case):
+This article tackles the challenge of automating the pick-and-place operation of multiple moving objects by a dual-arm robot while avoiding collisions between manipulators and minimising the execution time. The system is able to generate each robot’s trajectory to complete the task in the minimum time. This application is addressed from the mathematical framework of Markov Decision Processes (MDP). To do so, the workspace has been discretized to get a finite set of states connected by a set of actions. This work is focused on automation of industrial production and uses Reinforcement Learning to achieve high level of performance and flexibility. In this study, the model is tailored to suit a deterministic setup, where a single agent oversees the entire operation and enjoys full visibility into the system. The result is a methodology for using MDPs in time-changing processes which, when applied to bimanual manipulation, provides the following advantages: It devises optimal trajectories for completing tasks satisfactorily; Accounts for collision avoidance between manipulators and; Automatically generates robot code compatible with different manufacturers. The outcome fulfils the outlined objectives, yielding a robust solution.
 
 # Execution
 Both Value Iteration and BFS approaches are implemented in python.
