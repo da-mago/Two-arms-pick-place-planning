@@ -1,4 +1,4 @@
-# Project common configurability
+# Project common configurability 
 
 class GlobalConfig:
 
