@@ -1,4 +1,4 @@
-###############################################################################
+############################################################################### 
 #
 # Convert any deterministic RL environment to a tabular MDP.
 # Note: that speeds up the computation when searching for an optimal solution.
