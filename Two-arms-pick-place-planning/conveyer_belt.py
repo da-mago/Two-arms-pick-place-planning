@@ -1,5 +1,5 @@
 # TODO:
-# - if an MDP is regenerated with pick_pos > 0...this is not well supported
+# - if a MDP is regenerated with pick_pos > 0...this is not well supported
 
 # Validation
 from mdp_generator import mdp_generator
