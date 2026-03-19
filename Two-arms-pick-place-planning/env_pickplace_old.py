@@ -1,4 +1,4 @@
-# pick_pos>0 y pieces_status == 0 no es valid
+# pick_pos>0 y pieces_status == 0 no es valid 
 import time
 import random
 import numpy as np
