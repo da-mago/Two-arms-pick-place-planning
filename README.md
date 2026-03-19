@@ -18,7 +18,7 @@ This article tackles the challenge of automating the pick-and-place operation of
 This algorithm shows the pseudocode that outlines the reasoning used to identify the necessity of a new subproblem and the implementation of the calculated plan to resolve this subproblem. Initially, there are no pieces in the workspace area, hence there is no subproblem defined and the robots keep in idle state. The algorithm operates at the granularity of the time step. At each time step, the algorithm dispatches the subsequent action (line 24) for the robots from the existing plan, if available. If specific criteria are fulfilled, the whole plan is redeveloped (line 14), and the system performs the updated plan.
 
 ```
-1:     // Initially, there is not any plan active (robots keep idle)
+ 1:     // Initially, there is not any plan active (robots keep idle)
  2:     time_step = 0
  3:     plan = None
  4:     plan_max_pieces = N		// N = 2 chosen for the experiments
@@ -47,32 +47,10 @@ This algorithm shows the pseudocode that outlines the reasoning used to identify
 27:     ENDLOOP
 ```
 
-# Change the initial conditions
-If you intend to try with different initial conditions, you'll need to edit the code for that.
+# Dual-MDP behaviour
 
-In the case of value iteration or BFS, you need to specify the new input of the problem (check validation.py). That involves the initial location of the robotos, the intial and final location of the pieces, the action mode and the number of planes in the workspace.
+At the centre of the figure 16, details of this subproblem are shown. Subproblem 3 and Subproblem 4 are described. In each case, “Left arm” and “Right arm” discrete positions are listed. Positions marked with a colour represent a pick or a place operation and marking colour represents the colour of the piece. Note that Subproblem 3 planned placing blue piece first and yellow piece after, but when blue piece is placed, a new Subproblem is solved because a new red piece has to be processed. The new plan (Subproblem 4) realises that it is faster to pick red piece before placing the yellow one as it was previously planned.
 
 Example:
 
-    # EEs initial position
-    armsGridPos = [[6, 4, 0], [8, 0, 0]]
-    
-    # Pieces (config)
-    pieces_cfg = [
-        {'start': [ 250, 300, 180],'end'  : [-450, 400, 180],},
-        {'start': [-250, 300, 180],'end'  : [ 450, 400, 180],},
-        {'start': [  50, 600, 180],'end'  : [-350, 200, 180],},
-        {'start': [ -50, 600, 180],'end'  : [ 350, 200, 180],},
-        {'start': [-450, 200, 180],'end'  : [ 250, 500, 180],},
-        {'start': [ 450, 200, 180],'end'  : [-250, 500, 180],},
-        {'start': [-350, 600, 180],'end'  : [ 150, 300, 180],},
-        {'start': [ 350, 600, 180],'end'  : [-150, 300, 180],},
-        {'start': [ 250, 400, 180],'end'  : [ 450, 500, 180],},
-        {'start': [-250, 400, 180],'end'  : [ 350, 300, 180],}
-    ]
-
-    # Only orthogonal moves in the horizontal plane are allowed
-    num_layers = 1
-    action_mode = Cfg.ACTIONS_ORTHO_2D
-
-In the case of PDDL, there is a file definition per use (depending on the action mode and the number of pieces). You need to edit the appropriate one and update initial location of the robots and initial and fina location of the pieces.
+![Picture missing](images/F15a.png)
