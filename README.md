@@ -53,4 +53,4 @@ At the centre of the figure, subproblem description is shown. Subproblem 3 and S
 
 Example:
 
-![Picture missing](images/F16.png)
+![Picture missing](images/F15a.png)
