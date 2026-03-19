@@ -2,7 +2,7 @@
 
 This repository contains the source code accompanying this research:
 
-![Robot setup picture missing](images/F15a.jpg)
+![Robot setup picture missing](images/F15a.png)
 
 # Installation
 Download the repository and make sure all dependencies are satisfied:
