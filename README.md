@@ -53,4 +53,4 @@ At the centre of the figure 16, details of this subproblem are shown. Subproblem
 
 Example:
 
-![Picture missing](images/F15a.png)
+![Picture missing](images/F16.png)
